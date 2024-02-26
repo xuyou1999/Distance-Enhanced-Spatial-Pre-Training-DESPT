@@ -35,8 +35,8 @@ def load_adj(pkl_filename, adjtpe, dataname):
 
 def setups():
     # make save folder
-    if not os.path.exists(P.PATH):
-        os.makedirs(P.PATH)
+    # if not os.path.exists(P.PATH):
+    #     os.makedirs(P.PATH)
     # seed
     torch.manual_seed(P.seed)
     torch.cuda.manual_seed(P.seed)

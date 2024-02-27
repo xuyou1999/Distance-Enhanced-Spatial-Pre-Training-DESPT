@@ -19,7 +19,6 @@ class gcn(nn.Module):
         super(gcn,self).__init__()
         self.nconv = nconv()
         c_in = (order*support_len+1)*c_in
-        print('c_in', c_in)
         self.mlp = nn.Linear(c_in, c_out)
         self.dropout = dropout
         self.order = order # hwo many neighbor steps to consider
@@ -63,14 +62,15 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         x = F.relu(x)
         x = self.bn2(x)
         x = self.conv3(x)
+        x_ = x
         # sample half of samples
-        n_half = int(x.shape[-1]/2)
-        x_ = torch.empty(x.shape[0], x.shape[1], n_half).to(x.device)
-        for i in range(x.shape[0]):
-            idx = np.arange(x.shape[2])
-            np.random.shuffle(idx)
-            idx = idx < n_half
-            x_[i, :, :] = x[i, :, idx]
+        # n_half = int(x.shape[-1]/2)
+        # x_ = torch.empty(x.shape[0], x.shape[1], n_half).to(x.device)
+        # for i in range(x.shape[0]):
+        #     idx = np.arange(x.shape[2])
+        #     np.random.shuffle(idx)
+        #     idx = idx < n_half
+        #     x_[i, :, :] = x[i, :, idx]
         # aggregate
         x_u = x_.mean(axis=2)
         x_z = x_.std(axis=2)
@@ -87,10 +87,10 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         print(x[0])
         return x
     
-    def contrast(self, x, support):
+    def contrast(self, x, support1, support2):
         # project
-        x1 = self(x, support)
-        x2 = self(x, support)
+        x1 = self(x, support1)
+        x2 = self(x, support2)
         x1 = self.fc2(x1)
         x2 = self.fc2(x2)
         # L2 norm

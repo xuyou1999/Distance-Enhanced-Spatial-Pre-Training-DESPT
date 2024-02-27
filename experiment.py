@@ -8,6 +8,13 @@ import unseen_nodes
 from utils import *
 from encoder import *
 from augmentation import *
+from model import *
+
+
+def getModel(name, device):
+    if name == 'gwnet':
+        model = gwnet(device, num_nodes=P.N_NODE, in_dim=P.CHANNEL, adp_adj=P.adp_adj, sga=P.is_SGA).to(device)
+    return model
 
 def getXSYS(data, mode):
     TRAIN_NUM = int(data.shape[0] * P.TRAINRATIO)
@@ -27,10 +34,22 @@ def getXSYS(data, mode):
     XS = XS.transpose(0, 3, 2, 1)
     return XS, YS
 
+def evaluateModel(model, criterion, data_iter, adj, embed):
+    model.eval()
+    torch.cuda.empty_cache()
+    l_sum, n = 0.0, 0
+    with torch.no_grad():
+        for x, y in data_iter:
+            y_pred = model(x.to(device), adj, embed)
+            l = criterion(y_pred, y.to(device))
+            l_sum += l.item() * y.shape[0]
+            n += y.shape[0]
+    return l_sum / n
+
 def setups():
     # make save folder
-    # if not os.path.exists(P.PATH):
-    #     os.makedirs(P.PATH)
+    if not os.path.exists(P.PATH):
+        os.makedirs(P.PATH)
     # seed
     torch.manual_seed(P.seed)
     torch.cuda.manual_seed(P.seed)
@@ -54,7 +73,9 @@ def setups():
 
     # # spatial split
     spatialSplit_unseen = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.R_TRN, r_val=.1, r_tst=.2, seed=P.seed)
+    spatialSplit_allNod = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.R_TRN, r_val=min(1.0,P.R_TRN*8/7), r_tst=1.0, seed=P.seed)
     print('spatialSplit_unseen', spatialSplit_unseen)
+    print('spatialSplit_allNod', spatialSplit_allNod)
     # print(spatialSplit_unseen.i_trn)
     # print(spatialSplit_unseen.i_val)
     # print(spatialSplit_unseen.i_tst)
@@ -62,24 +83,36 @@ def setups():
     YS_torch_train = torch.Tensor(YS_torch_trn[:,:,spatialSplit_unseen.i_trn,:])
     XS_torch_val_u = torch.Tensor(XS_torch_val[:,:,spatialSplit_unseen.i_val,:])
     YS_torch_val_u = torch.Tensor(YS_torch_val[:,:,spatialSplit_unseen.i_val,:])
+    XS_torch_val_a = torch.Tensor(XS_torch_val[:,:,spatialSplit_allNod.i_val,:])
+    YS_torch_val_a = torch.Tensor(YS_torch_val[:,:,spatialSplit_allNod.i_val,:])
     XS_torch_tst_u = torch.Tensor(testXS[:,:,spatialSplit_unseen.i_tst,:])
     YS_torch_tst_u = torch.Tensor(testYS[:,:,spatialSplit_unseen.i_tst,:])
+    XS_torch_tst_a = torch.Tensor(testXS[:,:,spatialSplit_allNod.i_tst,:])
+    YS_torch_tst_a = torch.Tensor(testYS[:,:,spatialSplit_allNod.i_tst,:])
     print('train.shape', XS_torch_train.shape, YS_torch_train.shape)
     print('val_u.shape', XS_torch_val_u.shape, YS_torch_val_u.shape)
+    print('val_a.shape', XS_torch_val_a.shape, YS_torch_val_a.shape)
     print('tst_u.shape', XS_torch_tst_u.shape, YS_torch_tst_u.shape)
+    print('tst_a.shape', XS_torch_tst_a.shape, YS_torch_tst_a.shape)
     # torch dataset
     train_data = torch.utils.data.TensorDataset(XS_torch_train, YS_torch_train)
     val_u_data = torch.utils.data.TensorDataset(XS_torch_val_u, YS_torch_val_u)
+    val_a_data = torch.utils.data.TensorDataset(XS_torch_val_a, YS_torch_val_a)
     tst_u_data = torch.utils.data.TensorDataset(XS_torch_tst_u, YS_torch_tst_u)
+    tst_a_data = torch.utils.data.TensorDataset(XS_torch_tst_a, YS_torch_tst_a)
     # torch dataloader
     train_iter = torch.utils.data.DataLoader(train_data, P.BATCHSIZE, shuffle=True)
     val_u_iter = torch.utils.data.DataLoader(val_u_data, P.BATCHSIZE, shuffle=False)
+    val_a_iter = torch.utils.data.DataLoader(val_a_data, P.BATCHSIZE, shuffle=False)
     tst_u_iter = torch.utils.data.DataLoader(tst_u_data, P.BATCHSIZE, shuffle=False)
+    tst_a_iter = torch.utils.data.DataLoader(tst_a_data, P.BATCHSIZE, shuffle=False)
     # adj matrix spatial split
     adj_mx = load_adj(P.ADJPATH, None, P.DATANAME)
     adj_train = [torch.tensor(i[spatialSplit_unseen.i_trn,:][:,spatialSplit_unseen.i_trn]).to(device) for i in adj_mx]
     adj_val_u = [torch.tensor(i[spatialSplit_unseen.i_val,:][:,spatialSplit_unseen.i_val]).to(device) for i in adj_mx]
+    adj_val_a = [torch.tensor(i[spatialSplit_allNod.i_val,:][:,spatialSplit_allNod.i_val]).to(device) for i in adj_mx]
     adj_tst_u = [torch.tensor(i[spatialSplit_unseen.i_tst,:][:,spatialSplit_unseen.i_tst]).to(device) for i in adj_mx]
+    adj_tst_a = [torch.tensor(i[spatialSplit_allNod.i_tst,:][:,spatialSplit_allNod.i_tst]).to(device) for i in adj_mx]
     print('adj_train', len(adj_train), adj_train[0].shape)
     # PRETRAIN data loader
     pretrn_iter = torch.utils.data.DataLoader(
@@ -94,16 +127,16 @@ def setups():
     # print
     # for k, v in vars(P).items():
     #     print(k,v)
-    return pretrn_iter, preval_iter, spatialSplit_unseen, \
-        train_iter, val_u_iter, tst_u_iter, \
-        adj_train, adj_val_u, adj_tst_u
+    return pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \
+        train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
+        adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a
 
-def pretrainModel(pretrain_iter, preval_iter, adj, device):
+def pretrainModel(name, pretrain_iter, preval_iter, adj, device):
     print('pretrainModel Started ...', time.ctime())
     model = Contrastive_FeatureExtractor_conv(P.TEMPERATURE).to(device)
-    min_val_loss = np.inf
+    # min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.LEARN, weight_decay=P.weight_decay)
-    loss_sum, n = 0.0, 0
+    # loss_sum, n = 0.0, 0
     model.train()
     x = pretrain_iter.dataset.tensors
     print('x[0].shape', x[0].shape)
@@ -111,9 +144,10 @@ def pretrainModel(pretrain_iter, preval_iter, adj, device):
     loss = model.contrast(x[0].to(device), edge_masking(adj, 0.1, device), edge_masking(adj, 0.1, device)) # contrastive loss is generated by the model itself
     loss.backward()
     optimizer.step()
-    loss_sum += loss.item() * x[0].shape[0]
-    n += x[0].shape[0]
-    train_loss = loss_sum / n
+    # loss_sum += loss.item() * x[0].shape[0]
+    # n += x[0].shape[0]
+    torch.save(model.state_dict(), P.PATH + '/' + name + '.pt')
+    # train_loss = loss_sum / n
     # val_loss = pre_evaluateModel(model, preval_iter)
     # if val_loss < min_val_loss:
     #     min_val_loss = val_loss
@@ -123,6 +157,79 @@ def pretrainModel(pretrain_iter, preval_iter, adj, device):
     # print("epoch", epoch, "time used:", epoch_time," seconds ", "train loss:", train_loss, "validation loss:", val_loss)
     # with open(P.PATH + '/' + name + '_log.txt', 'a') as f:
     #     f.write("%s, %d, %s, %d, %s, %s, %.10f, %s, %.10f\n" % ("epoch", epoch, "time used", epoch_time, "seconds", "train loss", train_loss, "validation loss:", val_loss))
+
+def trainModel(name, mode, 
+        train_iter, val_u_iter, val_a_iter,
+        adj_train, adj_val_u, adj_val_a,
+        spatialSplit_unseen, spatialSplit_allNod):
+    print('trainModel Started ...', time.ctime())
+    print('TIMESTEP_IN, TIMESTEP_OUT', P.TIMESTEP_IN, P.TIMESTEP_OUT)
+    model = getModel(name, device)
+    min_val_u_loss = np.inf
+    min_val_a_loss = np.inf
+    criterion = nn.L1Loss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=P.LEARN, weight_decay=P.weight_decay)
+    s_time = datetime.now()
+    print('Model Training Started ...', s_time)
+    encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE).to(device)
+    encoder.eval()
+    with torch.no_grad():
+        encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
+        train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device), adj_train).T.detach()
+        val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device).float().T, adj_val_u).T.detach()
+        val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device).float().T, adj_val_a).T.detach()
+    m_time = datetime.now()
+    print('ENCODER INFER DURATION IN MODEL TRAINING:', m_time, '-', s_time, '=', m_time-s_time)
+    print('train_embed', train_embed.shape, train_embed.mean(), train_embed.std())
+    print('val_u_embed', val_u_embed.shape, val_u_embed.mean(), val_u_embed.std())
+    print('val_a_embed', val_a_embed.shape, val_a_embed.mean(), val_a_embed.std())
+    for epoch in range(P.EPOCH):
+        starttime = datetime.now()     
+        loss_sum, n = 0.0, 0
+        model.train()
+        for x, y in train_iter:
+            # print('x.shape, y.shape', x.shape, y.shape)
+            optimizer.zero_grad()
+            y_pred = model(x.to(device), adj_train, train_embed)
+            loss = criterion(y_pred, y.to(device))
+            loss.backward()
+            optimizer.step()
+            loss_sum += loss.item() * y.shape[0]
+            n += y.shape[0]
+        train_loss = loss_sum / n
+        val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed)
+        val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed)
+        if val_u_loss < min_val_u_loss:
+            min_val_u_loss = val_u_loss
+            torch.save(model.state_dict(), P.PATH + '/' + name + '_u.pt')
+        if val_a_loss < min_val_a_loss:
+            min_val_a_loss = val_a_loss
+            torch.save(model.state_dict(), P.PATH + '/' + name + '_a.pt')
+        endtime = datetime.now()
+        epoch_time = (endtime - starttime).seconds
+        print("epoch", epoch,
+            "time used:",epoch_time," seconds ",
+            "train loss:", train_loss,
+            "validation unseen nodes loss:", val_u_loss,
+            "validation all nodes loss:", val_a_loss)
+        with open(P.PATH + '/' + name + '_log.txt', 'a') as f:
+            f.write("%s, %d, %s, %d, %s, %s, %.10f, %s, %.10f, %s, %.10f\n" % \
+                ("epoch", epoch,
+                 "time used:",epoch_time," seconds ",
+                 "train loss:", train_loss,
+                 "validation unseen nodes loss:", val_u_loss,
+                 "validation all nodes loss:", val_a_loss))
+    e_time = datetime.now()
+    print('MODEL TRAINING DURATION:', e_time, '-', s_time, '=', e_time-s_time)
+    torch_score = evaluateModel(model, criterion, train_iter, adj_train, train_embed)
+    # with open(P.PATH + '/' + name + '_prediction_scores.txt', 'a') as f:
+    #     f.write("%s, %s, %s, %.10e, %.10f\n" % (name, mode, 'MAE on train', torch_score, torch_score))
+    print('*' * 40)
+    print("%s, %s, %s, %.10e, %.10f" % (name, mode, 'MAE on train', torch_score, torch_score))
+    print('min_val_u_loss', min_val_u_loss)
+    print('min_val_a_loss', min_val_a_loss)
+    print('trainModel Ended ...', time.ctime())
+
 
 P = type('Parameters', (object,), {})()
 P.DATANAME = 'METRLA'
@@ -137,6 +244,9 @@ P.BATCHSIZE = 64
 P.TEMPERATURE = 1
 P.LEARN = 0.001
 P.weight_decay = 0
+P.adp_adj = True
+P.is_SGA = True
+P.EPOCH = 1
 
 device = torch.device('mps') 
 
@@ -152,12 +262,16 @@ def main():
         P.N_NODE = 207
         data = pd.read_hdf(P.FLOWPATH).values
     print('data.shape:', data.shape)
-    pretrn_iter, preval_iter, spatialSplit_unseen, \
-        train_iter, val_u_iter, tst_u_iter, \
-        adj_train, adj_val_u, adj_tst_u = setups()
+    pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \
+        train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
+        adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups()
     # Now, only use pretrn_iter for encoding
-    pretrainModel(pretrn_iter, preval_iter, adj_train, device)
+    pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, device)
     # print(edge_masking(adj_train, 0.9, device))
+    trainModel('gwnet', 'train',
+        train_iter, val_u_iter, val_a_iter,
+        adj_train, adj_val_u, adj_val_a,
+        spatialSplit_unseen, spatialSplit_allNod)
 
 
 if __name__ == '__main__':

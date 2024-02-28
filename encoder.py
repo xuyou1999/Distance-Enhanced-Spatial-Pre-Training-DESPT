@@ -40,9 +40,10 @@ class gcn(nn.Module):
         return h
     
 class Contrastive_FeatureExtractor_conv(nn.Module):
-    def __init__(self, temperature=1):
+    def __init__(self, temperature=1, is_gcn=True):
         super().__init__()
         self.temperature = temperature
+        self.is_gcn = is_gcn
         self.conv1 = torch.nn.Conv1d( 1, 32, 13, stride=1) # 1 hour --> per timestep
         self.conv2 = torch.nn.Conv1d(32, 32, 12, stride=12) # 2 hour --> per hour
         self.conv3 = torch.nn.Conv1d(32, 32, 24, stride=24) # 1 day --> per day
@@ -54,8 +55,9 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         self.bn4 = torch.nn.BatchNorm1d(32)
         self.gcn = gcn(32, 32, 0, 1, 1)
     def forward(self, x, support):
-        print('x.shape', x.shape)
+        # print('x.shape', x.shape)
         x = self.conv1(x[:,None,:])
+        # print('x.shape', x.shape)
         x = F.relu(x)
         x = self.bn1(x)
         x = self.conv2(x)
@@ -81,10 +83,11 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         x = self.fc1(x)
         x = F.relu(x)
         x = self.bn4(x)
-        print(x[0])
-        x = self.gcn(x, support)
-        print('x.shape_out', x.shape)
-        print(x[0])
+        # print(x[0])
+        if self.is_gcn == True:
+            x = self.gcn(x, support)
+        # print('x.shape_out', x.shape)
+        # print(x[0])
         return x
     
     def contrast(self, x, support1, support2):

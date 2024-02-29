@@ -40,7 +40,7 @@ class gcn(nn.Module):
         return h
     
 class Contrastive_FeatureExtractor_conv(nn.Module):
-    def __init__(self, temperature=1, is_gcn=True):
+    def __init__(self, temperature=1, is_gcn=True, is_sampler=False):
         super().__init__()
         self.temperature = temperature
         self.is_gcn = is_gcn
@@ -54,6 +54,7 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         self.bn3 = torch.nn.BatchNorm1d(32*3)
         self.bn4 = torch.nn.BatchNorm1d(32)
         self.gcn = gcn(32, 32, 0, 1, 1)
+        self.is_sampler = is_sampler
     def forward(self, x, support):
         # print('x.shape', x.shape)
         x = self.conv1(x[:,None,:])
@@ -64,15 +65,17 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         x = F.relu(x)
         x = self.bn2(x)
         x = self.conv3(x)
-        x_ = x
+        if self.is_gcn == True and self.is_sampler == False:
+            x_ = x
+        else:
         # sample half of samples
-        # n_half = int(x.shape[-1]/2)
-        # x_ = torch.empty(x.shape[0], x.shape[1], n_half).to(x.device)
-        # for i in range(x.shape[0]):
-        #     idx = np.arange(x.shape[2])
-        #     np.random.shuffle(idx)
-        #     idx = idx < n_half
-        #     x_[i, :, :] = x[i, :, idx]
+            n_half = int(x.shape[-1]/2)
+            x_ = torch.empty(x.shape[0], x.shape[1], n_half).to(x.device)
+            for i in range(x.shape[0]):
+                idx = np.arange(x.shape[2])
+                np.random.shuffle(idx)
+                idx = idx < n_half
+                x_[i, :, :] = x[i, :, idx]
         # aggregate
         x_u = x_.mean(axis=2)
         x_z = x_.std(axis=2)

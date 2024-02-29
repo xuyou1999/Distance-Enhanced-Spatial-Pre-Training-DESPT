@@ -28,5 +28,5 @@ def edge_masking(adj_matrix, rem, device='cpu'):
         # Use the diagonal mask to keep the diagonal elements of adj_matrix in A_prime
         A_prime[diagonal_mask] = adj_matrix[i][diagonal_mask]
         output.append(A_prime)
-
+    print('edge_masking output', output)
     return output

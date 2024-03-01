@@ -34,7 +34,7 @@ class gcn(nn.Module):
                 x1 = x2
 
         h = torch.cat(out,dim=1)
-        print('h.shape', h.shape)
+        # print('h.shape', h.shape)
         h = self.mlp(h)
         h = F.dropout(h, self.dropout, training=self.training)
         return h

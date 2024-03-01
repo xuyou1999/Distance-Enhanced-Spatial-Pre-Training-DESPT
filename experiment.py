@@ -14,11 +14,11 @@ import Metrics
 
 def getModel(name, device):
     if name == 'gwnet':
-        model = gwnet(device, num_nodes=P.N_NODE, in_dim=P.CHANNEL, adp_adj=P.adp_adj, sga=P.is_SGA).to(device)
+        model = gwnet(device, num_nodes=P.N_NODE, in_dim=P.CHANNEL, adp_adj=P.is_adp_adj, sga=P.is_SGA).to(device)
     return model
 
 def getXSYS(data, mode):
-    TRAIN_NUM = int(data.shape[0] * P.TRAINRATIO)
+    TRAIN_NUM = int(data.shape[0] * (P.T_TRN + P.T_VAL))
     XS, YS = [], []
     if mode == 'TRAIN':    
         for i in range(TRAIN_NUM - P.TIMESTEP_OUT - P.TIMESTEP_IN + 1):
@@ -34,6 +34,17 @@ def getXSYS(data, mode):
     XS, YS = XS[:, :, :, np.newaxis], YS[:, :, :, np.newaxis]
     XS = XS.transpose(0, 3, 2, 1)
     return XS, YS
+
+def pre_evaluateModel(model, data_iter, adj):
+    model.eval()
+    with torch.no_grad():
+        x = data_iter.dataset.tensors
+        # print(x[0].shape)
+        if P.is_GCN == True and P.is_sampler == False:
+            l = model.contrast(x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device))
+        else:
+            l = model.contrast(x[0].to(device), adj, adj)
+        return l / x[0].shape[0]
 
 def evaluateModel(model, criterion, data_iter, adj, embed):
     model.eval()
@@ -77,15 +88,15 @@ def setups():
     print('testYS.shape', testYS.shape)
     # trn val split
     P.trainval_size = len(trainXS)
-    P.train_size = int(P.trainval_size * (1-P.TRAINVALSPLIT))
+    P.train_size = int(P.trainval_size * (P.T_TRN / (P.T_TRN + P.T_VAL)))
     XS_torch_trn = trainXS[:P.train_size,:,:,:]
     YS_torch_trn = trainYS[:P.train_size,:,:,:]
     XS_torch_val = trainXS[P.train_size:P.trainval_size,:,:,:]
     YS_torch_val = trainYS[P.train_size:P.trainval_size,:,:,:]
 
     # # spatial split
-    spatialSplit_unseen = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.R_TRN, r_val=.1, r_tst=.2, seed=P.seed)
-    spatialSplit_allNod = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.R_TRN, r_val=min(1.0,P.R_TRN*8/7), r_tst=1.0, seed=P.seed)
+    spatialSplit_unseen = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.S_TRN, r_val=.1, r_tst=.2, seed=P.seed)
+    spatialSplit_allNod = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.S_TRN, r_val=min(1.0,P.S_VAL+P.S_TRN), r_tst=1.0, seed=P.seed)
     print('spatialSplit_unseen', spatialSplit_unseen)
     print('spatialSplit_allNod', spatialSplit_allNod)
     # print(spatialSplit_unseen.i_trn)
@@ -147,35 +158,34 @@ def setups():
         train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a
 
-def pretrainModel(name, pretrain_iter, preval_iter, adj, device):
+def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device):
     print('pretrainModel Started ...', time.ctime())
     model = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
-    # min_val_loss = np.inf
+    min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.LEARN, weight_decay=P.weight_decay)
-    # loss_sum, n = 0.0, 0
-    model.train()
-    x = pretrain_iter.dataset.tensors
-    # print('x[0].shape', x[0].shape)
-    optimizer.zero_grad()
-    if P.is_GCN == True and P.is_sampler == False:
-        loss = model.contrast(x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device))
-    else:
-        loss = model.contrast(x[0].to(device), adj, adj)
-    loss.backward()
-    optimizer.step()
-    # loss_sum += loss.item() * x[0].shape[0]
-    # n += x[0].shape[0]
-    torch.save(model.state_dict(), P.PATH + '/' + name + '.pt')
-    # train_loss = loss_sum / n
-    # val_loss = pre_evaluateModel(model, preval_iter)
-    # if val_loss < min_val_loss:
-    #     min_val_loss = val_loss
-    #     torch.save(model.state_dict(), P.PATH + '/' + name + '.pt')
-    # endtime = datetime.now()
-    # epoch_time = (endtime - starttime).seconds
-    # print("epoch", epoch, "time used:", epoch_time," seconds ", "train loss:", train_loss, "validation loss:", val_loss)
-    # with open(P.PATH + '/' + name + '_log.txt', 'a') as f:
-    #     f.write("%s, %d, %s, %d, %s, %s, %.10f, %s, %.10f\n" % ("epoch", epoch, "time used", epoch_time, "seconds", "train loss", train_loss, "validation loss:", val_loss))
+    s_time = datetime.now()
+    for epoch in range(P.PRETRN_EPOCH):
+        starttime = datetime.now()
+        model.train()
+        x = pretrain_iter.dataset.tensors
+        optimizer.zero_grad()
+        if P.is_GCN == True and P.is_sampler == False:
+            loss = model.contrast(x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device))
+        else:
+            loss = model.contrast(x[0].to(device), adj_train, adj_train)
+        loss.backward()
+        optimizer.step()
+        train_loss = loss / x[0].shape[0]
+        val_loss = pre_evaluateModel(model, preval_iter, adj_val_u)
+        if val_loss < min_val_loss:
+            min_val_loss = val_loss
+            torch.save(model.state_dict(), P.PATH + '/' + name + '.pt')
+        endtime = datetime.now()
+        epoch_time = (endtime - starttime).seconds
+        print("epoch", epoch, "time used:", epoch_time," seconds ", "train loss:", train_loss, "validation loss:", val_loss)
+    e_time = datetime.now()
+    print('PRETIME DURATION:', e_time, '-', s_time, '=', e_time-s_time)
+    print('pretrainModel Ended ...', time.ctime())
 
 def trainModel(name, mode, 
         train_iter, val_u_iter, val_a_iter,
@@ -300,19 +310,21 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
 P = type('Parameters', (object,), {})()
 P.DATANAME = 'METRLA'
 P.seed = 0
-P.TRAINRATIO = 0.8 # TRAIN + VAL
+P.T_TRN = 0.7
+P.T_VAL = 0.1
+P.S_TRN = 0.7
+P.S_VAL = 0.1
 P.TIMESTEP_IN = 12
 P.TIMESTEP_OUT = 12
 P.CHANNEL = 1
-P.TRAINVALSPLIT = 0.125 # val_ratio = 0.8 * 0.125 = 0.1
-P.R_TRN = 0.7
 P.BATCHSIZE = 64
 P.TEMPERATURE = 1
 P.LEARN = 0.001
-P.weight_decay = 0
-P.adp_adj = True
-P.is_SGA = True
+P.PRETRN_EPOCH = 5
 P.EPOCH = 1
+P.weight_decay = 0
+P.is_adp_adj = True
+P.is_SGA = True
 P.is_GCN = True
 P.is_sampler = True
 
@@ -334,7 +346,7 @@ def main():
         train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups()
     # Now, only use pretrn_iter for encoding
-    pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, device)
+    pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_u, device)
     # print(edge_masking(adj_train, 0.9, device))
     trainModel('gwnet', 'train',
         train_iter, val_u_iter, val_a_iter,

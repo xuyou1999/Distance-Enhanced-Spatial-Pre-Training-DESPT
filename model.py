@@ -162,6 +162,8 @@ class gwnet(nn.Module):
         return x
 
     def naive_addition(self, x, e):
+        # print('shape of x is:', x.shape)
+        # print('shape of e is:', e.shape)
         return x + e.unsqueeze(0).unsqueeze(-1).expand(x.shape[0],-1,-1,x.shape[-1]) # BDNL
 
     def forward(self, input, adj, embed):
@@ -226,22 +228,34 @@ class gwnet(nn.Module):
         x = F.relu(skip)
         x = F.relu(self.end_conv_1(x))
         x = self.end_conv_2(x)
+        # print('shape of x is:', x.shape)
         return x
     
 # LSTM model for univariate time series forecasting using Pytorch
 class LSTM_uni(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, layer_dim=1, dropout_prob = 0.2, device = 'cpu'):
+    def __init__(self, input_dim, hidden_dim, output_dim = 12, layer_dim=1, dropout_prob = 0.2, device = 'cpu'):
         super(LSTM_uni, self).__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
         self.hidden_dim = hidden_dim # number of hidden units in hidden state
         self.layer_dim = layer_dim # number of stacked lstm layers
         self.device = device
         # batch_first=True causes input/output tensors to be of shape
         # (batch_dim, seq_dim, feature_dim)
-        self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True, dropout=dropout_prob)
+        self.start_conv = nn.Conv2d(in_channels=input_dim,
+                                    out_channels=32,
+                                    kernel_size=(1,1))
+        self.lstm = nn.LSTM(32, hidden_dim, layer_dim, batch_first=True, dropout=dropout_prob)
         self.fc = nn.Linear(hidden_dim, output_dim) # fully connected layer
 
-    def forward(self, x, future=False):
-        # input x is expected to be of shape (batch_dim, seq_dim, feature_dim)
+    def forward(self, x, e, future=False):
+        # Transform x to the shape (batch_dim, seq_dim, feature_dim)
+        batch_size = x.size(0)
+        sensor_size = x.size(2)
+        x = self.start_conv(x)
+        x = x + e.unsqueeze(0).unsqueeze(-1).expand(x.shape[0],-1,-1,x.shape[-1])
+        x = x.permute(0, 2, 3, 1)
+        x = x.contiguous().view(-1, 12, 32)
         # hidden and cell states are expected along with input x in LSTMs = (h_0, c_0)
         # Initialize hidden state with zeros (layer_dim, batch_size, hidden_dim)
         h0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim, device=self.device).requires_grad_()
@@ -252,5 +266,7 @@ class LSTM_uni(nn.Module):
         out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
         out = out[:, -1, :] # only take the last output of the sequence
         out = self.fc(out) # fully connected layer
+        out = out.view(batch_size, sensor_size, self.output_dim)
+        out = out.permute(0, 2, 1).unsqueeze(-1)
 
         return out

@@ -15,6 +15,8 @@ import Metrics
 def getModel(name, device):
     if name == 'gwnet':
         model = gwnet(device, num_nodes=P.N_NODE, in_dim=P.CHANNEL, adp_adj=P.is_adp_adj, sga=P.is_SGA).to(device)
+    elif name == 'LSTM':
+        model = LSTM_uni(input_dim=P.CHANNEL, hidden_dim=P.hidden_dim, device=device).to(device)
     return model
 
 def getXSYS(data, mode):
@@ -51,7 +53,10 @@ def evaluateModel(model, criterion, data_iter, adj, embed):
     l_sum, n = 0.0, 0
     with torch.no_grad():
         for x, y in data_iter:
-            y_pred = model(x.to(device), adj, embed)
+            if P.MODEL == 'gwnet':
+                y_pred = model(x.to(device), adj, embed)
+            elif P.MODEL == 'LSTM':
+                y_pred = model(x.to(device), embed)
             l = criterion(y_pred, y.to(device))
             l_sum += l.item() * y.shape[0]
             n += y.shape[0]
@@ -62,7 +67,10 @@ def predictModel(model, data_iter, adj, embed):
     model.eval()
     with torch.no_grad():
         for x, y in data_iter:
-            YS_pred_batch = model(x.to(device), adj, embed)
+            if P.MODEL == 'gwnet':
+                YS_pred_batch = model(x.to(device), adj, embed)
+            elif P.MODEL == 'LSTM':
+                YS_pred_batch = model(x.to(device), embed)
             YS_pred_batch = YS_pred_batch.cpu().numpy()
             YS_pred.append(YS_pred_batch)
         YS_pred = np.vstack(YS_pred)
@@ -198,13 +206,18 @@ def trainModel(name, mode,
     optimizer = torch.optim.Adam(model.parameters(), lr=P.LEARN, weight_decay=P.weight_decay)
     s_time = datetime.now()
     print('Model Training Started ...', s_time)
-    encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
-    encoder.eval()
-    with torch.no_grad():
-        encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
-        train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device), adj_train).T.detach()
-        val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device).float().T, adj_val_u).T.detach()
-        val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device).float().T, adj_val_a).T.detach()
+    if P.IS_PRETRN:
+        encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
+        encoder.eval()
+        with torch.no_grad():
+            encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
+            train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device), adj_train).T.detach()
+            val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device).float().T, adj_val_u).T.detach()
+            val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device).float().T, adj_val_a).T.detach()
+    else:
+        train_embed = torch.zeros(32, train_iter.dataset.tensors[0].shape[2]).to(device).detach()
+        val_u_embed = torch.zeros(32, val_u_iter.dataset.tensors[0].shape[2]).to(device).detach()
+        val_a_embed = torch.zeros(32, val_a_iter.dataset.tensors[0].shape[2]).to(device).detach()
     m_time = datetime.now()
     print('ENCODER INFER DURATION IN MODEL TRAINING:', m_time, '-', s_time, '=', m_time-s_time)
     print('train_embed', train_embed.shape, train_embed.mean(), train_embed.std())
@@ -216,7 +229,13 @@ def trainModel(name, mode,
         model.train()
         for x, y in train_iter:
             optimizer.zero_grad()
-            y_pred = model(x.to(device), adj_train, train_embed)
+            # print('x.shape, emb', x.shape, train_embed.shape)
+            if P.MODEL == 'gwnet':
+                y_pred = model(x.to(device), adj_train, train_embed)
+            elif P.MODEL == 'LSTM':
+                y_pred = model(x.to(device), train_embed)
+            # print('y_pred.shape', y_pred.shape)
+            # print('y.shape', y.shape)
             loss = criterion(y_pred, y.to(device))
             loss.backward()
             optimizer.step()
@@ -269,8 +288,9 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
     
     print('Model Infer Start ...', s_time)
     tst_embed = torch.zeros(32, test_iter.dataset.tensors[0].shape[2]).to(device).detach()
-    with torch.no_grad():
-        tst_embed = encoder(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device).float().T, adj_tst).T.detach()
+    if P.IS_PRETRN:
+        with torch.no_grad():
+            tst_embed = encoder(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device).float().T, adj_tst).T.detach()
 
     m_time = datetime.now()
     print('ENCODER INFER DURATION:', m_time, '-', s_time, '=', m_time-s_time)
@@ -306,6 +326,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
 
 P = type('Parameters', (object,), {})()
 P.DATANAME = 'METRLA'
+P.MODEL = 'LSTM'
 P.seed = 0
 P.T_TRN = 0.7
 P.T_VAL = 0.1
@@ -315,17 +336,22 @@ P.TIMESTEP_IN = 12
 P.TIMESTEP_OUT = 12
 P.CHANNEL = 1
 P.BATCHSIZE = 64
+P.hidden_dim = 128
 P.TEMPERATURE = 1
 P.LEARN = 0.001
 P.PRETRN_EPOCH = 5
-P.EPOCH = 1
+P.EPOCH = 2
 P.weight_decay = 0
+P.IS_PRETRN = True
 P.is_adp_adj = True
-P.is_SGA = True
+P.is_SGA = False
 P.is_GCN = True
-P.is_sampler = True
+P.is_sampler = False
 
-device = torch.device('mps') 
+if torch.backends.mps.is_available():
+    device = torch.device('mps') 
+if torch.cuda.is_available():
+    device = torch.device('cuda')
 
 def main():
     P.KEYWORD = 'pred_' + P.DATANAME + '_' + '_' + datetime.now().strftime("%y%m%d%H%M") + '_' + str(os.getpid())
@@ -345,11 +371,11 @@ def main():
     # Now, only use pretrn_iter for encoding
     pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device)
     # print(edge_masking(adj_train, 0.9, device))
-    trainModel('gwnet', 'train',
+    trainModel(P.MODEL, 'train',
         train_iter, val_u_iter, val_a_iter,
         adj_train, adj_val_u, adj_val_a,
         spatialSplit_unseen, spatialSplit_allNod)
-    testModel('gwnet', 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod)
+    testModel(P.MODEL, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod)
 
 
 if __name__ == '__main__':

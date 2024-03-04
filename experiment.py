@@ -37,14 +37,16 @@ def getXSYS(data, mode):
     XS = XS.transpose(0, 3, 2, 1)
     return XS, YS
 
-def pre_evaluateModel(model, data_iter, adj):
+def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, sensor_idx_end):
     model.eval()
     with torch.no_grad():
         x = data_iter.dataset.tensors
+        if sensor_idx_end == 'last':
+            sensor_idx_end = len(x[0])
         if P.is_GCN == True and P.is_sampler == False:
-            l = model.contrast(x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device))
+            l = model.contrast(x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device), sensor_idx_start, sensor_idx_end)
         else:
-            l = model.contrast(x[0].to(device), adj, adj)
+            l = model.contrast(x[0].to(device), adj, adj, sensor_idx_start, sensor_idx_end)
         return l / x[0].shape[0]
 
 def evaluateModel(model, criterion, data_iter, adj, embed):
@@ -106,8 +108,8 @@ def setups():
     spatialSplit_allNod = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.S_TRN, r_val=min(1.0,P.S_VAL+P.S_TRN), r_tst=1.0, seed=P.seed)
     print('spatialSplit_unseen', spatialSplit_unseen)
     print('spatialSplit_allNod', spatialSplit_allNod)
-    # print(spatialSplit_unseen.i_trn)
-    # print(spatialSplit_unseen.i_val)
+    print(spatialSplit_allNod.i_trn)
+    print(spatialSplit_allNod.i_val)
     # print(spatialSplit_unseen.i_tst)
     XS_torch_train = torch.Tensor(XS_torch_trn[:,:,spatialSplit_unseen.i_trn,:])
     YS_torch_train = torch.Tensor(YS_torch_trn[:,:,spatialSplit_unseen.i_trn,:])
@@ -162,7 +164,7 @@ def setups():
         train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a
 
-def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device):
+def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device, spatialSplit_allNod):
     print('pretrainModel Started ...', time.ctime())
     model = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
     min_val_loss = np.inf
@@ -174,13 +176,16 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
         x = pretrain_iter.dataset.tensors
         optimizer.zero_grad()
         if P.is_GCN == True and P.is_sampler == False:
-            loss = model.contrast(x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device))
+            loss = model.contrast(x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device), 0, len(x[0]))
         else:
-            loss = model.contrast(x[0].to(device), adj_train, adj_train)
+            loss = model.contrast(x[0].to(device), adj_train, adj_train, 0, len(x[0]))
         loss.backward()
         optimizer.step()
         train_loss = loss / x[0].shape[0]
-        val_loss = pre_evaluateModel(model, preval_iter, adj_val_u)
+        if P.is_testunseen:
+            sensor_idx_start = len(spatialSplit_allNod.i_trn)
+            print('sensor_idx_start', sensor_idx_start)
+        val_loss = pre_evaluateModel(model, preval_iter, adj_val_u, sensor_idx_start, 'last')
         if val_loss < min_val_loss:
             min_val_loss = val_loss
             torch.save(model.state_dict(), P.PATH + '/' + name + '.pt')
@@ -347,6 +352,7 @@ P.is_adp_adj = True
 P.is_SGA = False
 P.is_GCN = True
 P.is_sampler = False
+P.is_testunseen = True
 
 if torch.backends.mps.is_available():
     device = torch.device('mps') 
@@ -369,7 +375,8 @@ def main():
         train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups()
     # Now, only use pretrn_iter for encoding
-    pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device)
+    if P.IS_PRETRN:
+        pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device, spatialSplit_allNod)
     # print(edge_masking(adj_train, 0.9, device))
     trainModel(P.MODEL, 'train',
         train_iter, val_u_iter, val_a_iter,

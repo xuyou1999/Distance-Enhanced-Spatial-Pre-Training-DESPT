@@ -93,8 +93,9 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         # print(x[0])
         return x
     
-    def contrast(self, x, support1, support2):
+    def contrast(self, x, support1, support2, sensor_idx_start, sensor_idx_end):
         # project
+        print('x.shape', x.shape)
         x1 = self(x, support1)
         x2 = self(x, support2)
         x1 = self.fc2(x1)
@@ -102,6 +103,9 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         # L2 norm
         x1 = F.normalize(x1)
         x2 = F.normalize(x2)
+        x1 = x1[sensor_idx_start:sensor_idx_end]
+        x2 = x2[sensor_idx_start:sensor_idx_end]
+        print('x1.shape', x1.shape)
         # calculate loss
         return nt_xent_loss(x1,x2,self.temperature)
     

@@ -21,10 +21,18 @@ class SpatialSplit:
             self.i_val = indices[i_split1:i_split2]
             self.i_tst = indices[i_split2:i_split3]
         else:
-            # with replacement
-            self.i_trn = np.random.choice(length, size=int(length*(r_trn)), replace=False)
-            self.i_val = np.random.choice(length, size=int(length*(r_val)), replace=False)
-            self.i_tst = np.random.choice(length, size=int(length*(r_tst)), replace=False)
+            indices = np.arange(length)
+            np.random.shuffle(indices)
+            i_split1 = int(length*(r_trn))
+            i_split2 = int(length*(r_val))
+            i_split3 = int(length*(r_tst))
+            self.i_trn = indices[        :i_split1]
+            self.i_val = indices[:i_split2]
+            self.i_tst = indices[:i_split3]
+            # # with replacement
+            # self.i_trn = np.random.choice(length, size=int(length*(r_trn)), replace=False)
+            # self.i_val = np.random.choice(length, size=int(length*(r_val)), replace=False)
+            # self.i_tst = np.random.choice(length, size=int(length*(r_tst)), replace=False)
 
     def __repr__(self):
         return 'all: trn/val/tst : ' +\

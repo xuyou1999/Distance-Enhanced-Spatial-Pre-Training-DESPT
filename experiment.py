@@ -39,7 +39,6 @@ def pre_evaluateModel(model, data_iter, adj):
     model.eval()
     with torch.no_grad():
         x = data_iter.dataset.tensors
-        # print(x[0].shape)
         if P.is_GCN == True and P.is_sampler == False:
             l = model.contrast(x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device))
         else:
@@ -147,13 +146,10 @@ def setups():
         XS_torch_train[:,-1,:,0].T), batch_size=1, shuffle=True)
     preval_iter = torch.utils.data.DataLoader(
     torch.utils.data.TensorDataset(
-        torch.tensor(trainYS[:,-1,spatialSplit_unseen.i_val,0]).T.float()),
+        torch.tensor(trainYS[:,-1,spatialSplit_allNod.i_val,0]).T.float()),
     batch_size=1, shuffle=False)
     print('pretrn_iter.dataset.tensors[0].shape', pretrn_iter.dataset.tensors[0].shape)
     print('preval_iter.dataset.tensors[0].shape', preval_iter.dataset.tensors[0].shape)
-    # print
-    # for k, v in vars(P).items():
-    #     print(k,v)
     return pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \
         train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a
@@ -183,6 +179,8 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
         endtime = datetime.now()
         epoch_time = (endtime - starttime).seconds
         print("epoch", epoch, "time used:", epoch_time," seconds ", "train loss:", train_loss, "validation loss:", val_loss)
+        with open(P.PATH + '/' + name + '_log.txt', 'a') as f:
+            f.write("%s, %d, %s, %d, %s, %s, %.10f, %s, %.10f\n" % ("epoch", epoch, "time used", epoch_time, "seconds", "train loss", train_loss, "validation loss:", val_loss))
     e_time = datetime.now()
     print('PRETIME DURATION:', e_time, '-', s_time, '=', e_time-s_time)
     print('pretrainModel Ended ...', time.ctime())
@@ -217,7 +215,6 @@ def trainModel(name, mode,
         loss_sum, n = 0.0, 0
         model.train()
         for x, y in train_iter:
-            # print('x.shape, y.shape', x.shape, y.shape)
             optimizer.zero_grad()
             y_pred = model(x.to(device), adj_train, train_embed)
             loss = criterion(y_pred, y.to(device))
@@ -241,18 +238,18 @@ def trainModel(name, mode,
             "train loss:", train_loss,
             "validation unseen nodes loss:", val_u_loss,
             "validation all nodes loss:", val_a_loss)
-        # with open(P.PATH + '/' + name + '_log.txt', 'a') as f:
-        #     f.write("%s, %d, %s, %d, %s, %s, %.10f, %s, %.10f, %s, %.10f\n" % \
-        #         ("epoch", epoch,
-        #          "time used:",epoch_time," seconds ",
-        #          "train loss:", train_loss,
-        #          "validation unseen nodes loss:", val_u_loss,
-        #          "validation all nodes loss:", val_a_loss))
+        with open(P.PATH + '/' + name + '_log.txt', 'a') as f:
+            f.write("%s, %d, %s, %d, %s, %s, %.10f, %s, %.10f, %s, %.10f\n" % \
+                ("epoch", epoch,
+                 "time used:",epoch_time," seconds ",
+                 "train loss:", train_loss,
+                 "validation unseen nodes loss:", val_u_loss,
+                 "validation all nodes loss:", val_a_loss))
     e_time = datetime.now()
     print('MODEL TRAINING DURATION:', e_time, '-', s_time, '=', e_time-s_time)
-    # torch_score = evaluateModel(model, criterion, train_iter, adj_train, train_embed)
-    # # with open(P.PATH + '/' + name + '_prediction_scores.txt', 'a') as f:
-    # #     f.write("%s, %s, %s, %.10e, %.10f\n" % (name, mode, 'MAE on train', torch_score, torch_score))
+    torch_score = evaluateModel(model, criterion, train_iter, adj_train, train_embed)
+    with open(P.PATH + '/' + name + '_prediction_scores.txt', 'a') as f:
+        f.write("%s, %s, %s, %.10e, %.10f\n" % (name, mode, 'MAE on train', torch_score, torch_score))
     # print('*' * 40)
     # print("%s, %s, %s, %.10e, %.10f" % (name, mode, 'MAE on train', torch_score, torch_score))
     # print('min_val_u_loss', min_val_u_loss)
@@ -295,16 +292,16 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
     MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS, YS_pred)
     print('*' * 40)
     print("%s, %s, Torch MSE, %.10e, %.10f" % (name, mode, torch_score, torch_score))
-    # f = open(P.PATH + '/' + name + '_prediction_scores.txt', 'a')
-    # f.write("%s, %s, Torch MSE, %.10e, %.10f\n" % (name, mode, torch_score, torch_score))
+    f = open(P.PATH + '/' + name + '_prediction_scores.txt', 'a')
+    f.write("%s, %s, Torch MSE, %.10e, %.10f\n" % (name, mode, torch_score, torch_score))
     print("all pred steps, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f" % (name, mode, MSE, RMSE, MAE, MAPE))
-    # f.write("all pred steps, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (name, mode, MSE, RMSE, MAE, MAPE))
+    f.write("all pred steps, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (name, mode, MSE, RMSE, MAE, MAPE))
     for i in range(P.TIMESTEP_OUT):
         MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS[:, i, :], YS_pred[:, i, :])
         print("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
-    #     f.write("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
-    # f.close()
-    # print('Model Testing Ended ...', time.ctime())
+        f.write("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
+    f.close()
+    print('Model Testing Ended ...', time.ctime())
 
 
 P = type('Parameters', (object,), {})()
@@ -346,7 +343,7 @@ def main():
         train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups()
     # Now, only use pretrn_iter for encoding
-    pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_u, device)
+    pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device)
     # print(edge_masking(adj_train, 0.9, device))
     trainModel('gwnet', 'train',
         train_iter, val_u_iter, val_a_iter,

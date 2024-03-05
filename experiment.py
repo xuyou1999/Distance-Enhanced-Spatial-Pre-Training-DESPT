@@ -11,6 +11,13 @@ from augmentation import *
 from model import *
 import Metrics
 
+def save_parameters(param_obj, filename):
+    with open(filename, "w") as file:
+        for attr in dir(param_obj):
+            # Filter out built-in attributes/methods
+            if not attr.startswith("__"):
+                value = getattr(param_obj, attr)
+                file.write(f"{attr} = {value}\n")
 
 def getModel(name, device):
     if name == 'gwnet':
@@ -383,6 +390,7 @@ def main():
         train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups()
     # Now, only use pretrn_iter for encoding
+    save_parameters(P, P.PATH + '/' + 'parameters.txt')
     if P.IS_PRETRN:
         pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device, spatialSplit_allNod)
     # print(edge_masking(adj_train, 0.9, device))

@@ -49,7 +49,7 @@ def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, sensor_idx_end):
             l = model.contrast(x[0].to(device), adj, adj, sensor_idx_start, sensor_idx_end)
         return l / x[0].shape[0]
 
-def evaluateModel(model, criterion, data_iter, adj, embed):
+def evaluateModel(model, criterion, data_iter, adj, embed, sensor_idx_start=0):
     model.eval()
     torch.cuda.empty_cache()
     l_sum, n = 0.0, 0
@@ -59,6 +59,10 @@ def evaluateModel(model, criterion, data_iter, adj, embed):
                 y_pred = model(x.to(device), adj, embed)
             elif P.MODEL == 'LSTM':
                 y_pred = model(x.to(device), embed)
+            y_pred = y_pred[:,:,sensor_idx_start:,]
+            y = y[:,:,sensor_idx_start:,]
+            print('y_pred.shape', y_pred.shape)
+            print('y.shape', y.shape)
             l = criterion(y_pred, y.to(device))
             l_sum += l.item() * y.shape[0]
             n += y.shape[0]
@@ -108,8 +112,8 @@ def setups():
     spatialSplit_allNod = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.S_TRN, r_val=min(1.0,P.S_VAL+P.S_TRN), r_tst=1.0, seed=P.seed)
     print('spatialSplit_unseen', spatialSplit_unseen)
     print('spatialSplit_allNod', spatialSplit_allNod)
-    print(spatialSplit_allNod.i_trn)
-    print(spatialSplit_allNod.i_val)
+    # print(spatialSplit_allNod.i_trn)
+    # print(spatialSplit_allNod.i_val)
     # print(spatialSplit_unseen.i_tst)
     XS_torch_train = torch.Tensor(XS_torch_trn[:,:,spatialSplit_unseen.i_trn,:])
     YS_torch_train = torch.Tensor(YS_torch_trn[:,:,spatialSplit_unseen.i_trn,:])
@@ -184,7 +188,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
         train_loss = loss / x[0].shape[0]
         if P.is_testunseen:
             sensor_idx_start = len(spatialSplit_allNod.i_trn)
-            print('sensor_idx_start', sensor_idx_start)
+            # print('sensor_idx_start', sensor_idx_start)
         val_loss = pre_evaluateModel(model, preval_iter, adj_val_u, sensor_idx_start, 'last')
         if val_loss < min_val_loss:
             min_val_loss = val_loss
@@ -239,16 +243,16 @@ def trainModel(name, mode,
                 y_pred = model(x.to(device), adj_train, train_embed)
             elif P.MODEL == 'LSTM':
                 y_pred = model(x.to(device), train_embed)
-            # print('y_pred.shape', y_pred.shape)
-            # print('y.shape', y.shape)
             loss = criterion(y_pred, y.to(device))
             loss.backward()
             optimizer.step()
             loss_sum += loss.item() * y.shape[0]
             n += y.shape[0]
         train_loss = loss_sum / n
-        val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed)
-        val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed)
+        if P.is_testunseen:
+            sensor_idx_start = len(spatialSplit_allNod.i_trn)
+        val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed, 0)
+        val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, sensor_idx_start)
         if val_u_loss < min_val_u_loss:
             min_val_u_loss = val_u_loss
             torch.save(model.state_dict(), P.PATH + '/' + name + '_u.pt')
@@ -271,7 +275,7 @@ def trainModel(name, mode,
                  "validation all nodes loss:", val_a_loss))
     e_time = datetime.now()
     print('MODEL TRAINING DURATION:', e_time, '-', s_time, '=', e_time-s_time)
-    torch_score = evaluateModel(model, criterion, train_iter, adj_train, train_embed)
+    torch_score = evaluateModel(model, criterion, train_iter, adj_train, train_embed, 0)
     with open(P.PATH + '/' + name + '_prediction_scores.txt', 'a') as f:
         f.write("%s, %s, %s, %.10e, %.10f\n" % (name, mode, 'MAE on train', torch_score, torch_score))
     # print('*' * 40)
@@ -299,14 +303,18 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
 
     m_time = datetime.now()
     print('ENCODER INFER DURATION:', m_time, '-', s_time, '=', m_time-s_time)
-
-    torch_score = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed)
+    if P.is_testunseen:
+        sensor_idx_start = len(spatialsplit.i_val)
+    torch_score = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, sensor_idx_start)
     e_time = datetime.now()
     print('Model Infer End ...', e_time)
     
     print('MODEL INFER DURATION:', e_time, '-', s_time, '=', e_time-s_time)
     YS_pred = predictModel(model, test_iter, adj_tst, tst_embed)
     YS = test_iter.dataset.tensors[1].cpu().numpy()
+    if P.is_testunseen:
+        YS_pred = YS_pred[:,:,len(spatialsplit.i_val):,:]
+        YS = YS[:,:,len(spatialsplit.i_val):,:]
     print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
     # original_shape = np.squeeze(YS).shape
     # YS = scaler.inverse_transform(np.squeeze(YS).reshape(-1, YS.shape[2])).reshape(original_shape)

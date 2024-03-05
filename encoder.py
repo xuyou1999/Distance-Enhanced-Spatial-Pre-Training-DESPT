@@ -93,7 +93,7 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         # print(x[0])
         return x
     
-    def contrast(self, x, support1, support2, sensor_idx_start, sensor_idx_end):
+    def contrast(self, x, support1, support2, sensor_idx_start):
         # project
         # print('x.shape', x.shape)
         x1 = self(x, support1)

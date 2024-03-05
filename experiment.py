@@ -185,9 +185,9 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
         x = pretrain_iter.dataset.tensors
         optimizer.zero_grad()
         if P.is_GCN == True and P.is_sampler == False:
-            loss = model.contrast(x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device), 0, len(x[0]))
+            loss = model.contrast(x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device), 0)
         else:
-            loss = model.contrast(x[0].to(device), adj_train, adj_train, 0, len(x[0]))
+            loss = model.contrast(x[0].to(device), adj_train, adj_train, 0)
         loss.backward()
         optimizer.step()
         train_loss = loss / x[0].shape[0]

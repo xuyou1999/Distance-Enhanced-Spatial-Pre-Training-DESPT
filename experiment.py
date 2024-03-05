@@ -195,7 +195,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
             sensor_idx_start = len(spatialSplit_allNod.i_trn)
         else:
             sensor_idx_start = 0
-        val_loss = pre_evaluateModel(model, preval_iter, adj_val_u, sensor_idx_start, 'last')
+        val_loss = pre_evaluateModel(model, preval_iter, adj_val_u, sensor_idx_start)
         if val_loss < min_val_loss:
             min_val_loss = val_loss
             torch.save(model.state_dict(), P.PATH + '/' + name + '.pt')

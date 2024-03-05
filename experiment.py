@@ -44,16 +44,14 @@ def getXSYS(data, mode):
     XS = XS.transpose(0, 3, 2, 1)
     return XS, YS
 
-def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, sensor_idx_end):
+def pre_evaluateModel(model, data_iter, adj, sensor_idx_start):
     model.eval()
     with torch.no_grad():
         x = data_iter.dataset.tensors
-        if sensor_idx_end == 'last':
-            sensor_idx_end = len(x[0])
         if P.is_GCN == True and P.is_sampler == False:
-            l = model.contrast(x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device), sensor_idx_start, sensor_idx_end)
+            l = model.contrast(x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device), sensor_idx_start)
         else:
-            l = model.contrast(x[0].to(device), adj, adj, sensor_idx_start, sensor_idx_end)
+            l = model.contrast(x[0].to(device), adj, adj, sensor_idx_start)
         return l / x[0].shape[0]
 
 def evaluateModel(model, criterion, data_iter, adj, embed, sensor_idx_start=0):
@@ -68,8 +66,8 @@ def evaluateModel(model, criterion, data_iter, adj, embed, sensor_idx_start=0):
                 y_pred = model(x.to(device), embed)
             y_pred = y_pred[:,:,sensor_idx_start:,]
             y = y[:,:,sensor_idx_start:,]
-            print('y_pred.shape', y_pred.shape)
-            print('y.shape', y.shape)
+            # print('y_pred.shape', y_pred.shape)
+            # print('y.shape', y.shape)
             l = criterion(y_pred, y.to(device))
             l_sum += l.item() * y.shape[0]
             n += y.shape[0]
@@ -195,7 +193,8 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
         train_loss = loss / x[0].shape[0]
         if P.is_testunseen:
             sensor_idx_start = len(spatialSplit_allNod.i_trn)
-            # print('sensor_idx_start', sensor_idx_start)
+        else:
+            sensor_idx_start = 0
         val_loss = pre_evaluateModel(model, preval_iter, adj_val_u, sensor_idx_start, 'last')
         if val_loss < min_val_loss:
             min_val_loss = val_loss
@@ -258,6 +257,8 @@ def trainModel(name, mode,
         train_loss = loss_sum / n
         if P.is_testunseen:
             sensor_idx_start = len(spatialSplit_allNod.i_trn)
+        else:
+            sensor_idx_start = 0
         val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed, 0)
         val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, sensor_idx_start)
         if val_u_loss < min_val_u_loss:
@@ -312,6 +313,8 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
     print('ENCODER INFER DURATION:', m_time, '-', s_time, '=', m_time-s_time)
     if P.is_testunseen:
         sensor_idx_start = len(spatialsplit.i_val)
+    else:
+        sensor_idx_start = 0
     torch_score = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, sensor_idx_start)
     e_time = datetime.now()
     print('Model Infer End ...', e_time)
@@ -326,7 +329,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
     # original_shape = np.squeeze(YS).shape
     # YS = scaler.inverse_transform(np.squeeze(YS).reshape(-1, YS.shape[2])).reshape(original_shape)
     # YS_pred  = scaler.inverse_transform(np.squeeze(YS_pred).reshape(-1, YS_pred.shape[2])).reshape(original_shape)
-    print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
+    # print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
     # np.save(P.PATH + '/' + P.MODELNAME + '_' + mode + '_' + name +'_prediction.npy', YS_pred)
     # np.save(P.PATH + '/' + P.MODELNAME + '_' + mode + '_' + name +'_groundtruth.npy', YS)
     MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS, YS_pred)
@@ -367,6 +370,7 @@ P.is_adp_adj = True
 P.is_SGA = False
 P.is_GCN = True
 P.is_sampler = False
+# not possible: gcn false and sampler false
 P.is_testunseen = True
 
 if torch.backends.mps.is_available():

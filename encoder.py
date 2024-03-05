@@ -103,8 +103,8 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         # L2 norm
         x1 = F.normalize(x1)
         x2 = F.normalize(x2)
-        x1 = x1[sensor_idx_start:sensor_idx_end]
-        x2 = x2[sensor_idx_start:sensor_idx_end]
+        x1 = x1[sensor_idx_start:]
+        x2 = x2[sensor_idx_start:]
         # print('x1.shape', x1.shape)
         # calculate loss
         return nt_xent_loss(x1,x2,self.temperature)

@@ -392,9 +392,9 @@ def main():
         data = pd.read_hdf(P.FLOWPATH).values
     elif P.DATANAME == 'PEMSBAY':
         print('P.DATANAME == PEMSBAY')
-        P.FLOWPATH = '../master_graduation_project/data/PEMSBAY/pems-bay.h5'
+        P.FLOWPATH = './data/PEMSBAY/pems-bay.h5'
         P.n_dct_coeff = 4107
-        P.ADJPATH = '../master_graduation_project/data/PEMSBAY/adj_mx_bay.pkl'
+        P.ADJPATH = './data/PEMSBAY/adj_mx_bay.pkl'
         P.N_NODE = 325
         data = pd.read_hdf(P.FLOWPATH).values
     print('data.shape:', data.shape)

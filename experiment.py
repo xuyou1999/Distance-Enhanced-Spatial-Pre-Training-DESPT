@@ -296,9 +296,10 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
     criterion = nn.L1Loss()
     print('Model Testing', mode, 'Started ...', time.ctime())
     print('TIMESTEP_IN, TIMESTEP_OUT', P.TIMESTEP_IN, P.TIMESTEP_OUT)
-    encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
-    encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
-    encoder.eval()
+    if P.IS_PRETRN:
+        encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
+        encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
+        encoder.eval()
     model = getModel(name, device)
     model.load_state_dict(torch.load(P.PATH+ '/' + name +mode[-2:]+ '.pt'))
     s_time = datetime.now()
@@ -348,7 +349,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
 
 
 P = type('Parameters', (object,), {})()
-P.DATANAME = 'METRLA'
+P.DATANAME = 'PEMSBAY'
 P.MODEL = 'LSTM'
 P.seed = 0
 P.T_TRN = 0.7
@@ -362,8 +363,8 @@ P.BATCHSIZE = 64
 P.hidden_dim = 128
 P.TEMPERATURE = 1
 P.LEARN = 0.001
-P.PRETRN_EPOCH = 5
-P.EPOCH = 2
+P.PRETRN_EPOCH = 50
+P.EPOCH = 50
 P.weight_decay = 0
 P.IS_PRETRN = True
 P.is_adp_adj = True
@@ -388,6 +389,13 @@ def main():
         P.n_dct_coeff = 3918
         P.ADJPATH = './data/METRLA/adj_mx.pkl'
         P.N_NODE = 207
+        data = pd.read_hdf(P.FLOWPATH).values
+    elif P.DATANAME == 'PEMSBAY':
+        print('P.DATANAME == PEMSBAY')
+        P.FLOWPATH = '../master_graduation_project/data/PEMSBAY/pems-bay.h5'
+        P.n_dct_coeff = 4107
+        P.ADJPATH = '../master_graduation_project/data/PEMSBAY/adj_mx_bay.pkl'
+        P.N_NODE = 325
         data = pd.read_hdf(P.FLOWPATH).values
     print('data.shape:', data.shape)
     pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \

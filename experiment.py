@@ -53,6 +53,20 @@ def pre_evaluateModel(model, data_iter, adj, sensor_idx_start):
         else:
             l = model.contrast(x[0].to(device), adj, adj, sensor_idx_start)
         return l / x[0].shape[0]
+    
+def pre_evaluateModel_CoST(model1, model2, data_iter, adj, sensor_idx_start):
+    model1.eval()
+    model2.eval()
+    with torch.no_grad():
+        masking1 = edge_masking(adj, 0.02, device)
+        masking2 = edge_masking(adj, 0.02, device)
+        x = data_iter.dataset.tensors
+        trend1, season1 = model1(x[0].to(device), masking1)
+        trend2, season2 = model1(x[0].to(device), masking2)
+        x1 = torch.cat((trend1, season1), dim=1)
+        x2 = torch.cat((trend2, season2), dim=1)
+        l = model2.contrast(x1, x2, sensor_idx_start)
+        return l / x[0].shape[0]
 
 def evaluateModel(model, criterion, data_iter, adj, embed, sensor_idx_start=0):
     model.eval()
@@ -66,8 +80,8 @@ def evaluateModel(model, criterion, data_iter, adj, embed, sensor_idx_start=0):
                 y_pred = model(x.to(device), embed)
             y_pred = y_pred[:,:,sensor_idx_start:,]
             y = y[:,:,sensor_idx_start:,]
-            # print('y_pred.shape', y_pred.shape)
-            # print('y.shape', y.shape)
+            print('y_pred.shape', y_pred.shape)
+            print('y.shape', y.shape)
             l = criterion(y_pred, y.to(device))
             l_sum += l.item() * y.shape[0]
             n += y.shape[0]
@@ -208,6 +222,52 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
     print('PRETIME DURATION:', e_time, '-', s_time, '=', e_time-s_time)
     print('pretrainModel Ended ...', time.ctime())
 
+def pretrainModel_CoST(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device, spatialSplit_allNod):
+    print('pretrainModel Started ...', time.ctime())
+    model1 = CoSTEncoder_first(1, 32, P.kernals, P.alpha, P.TEMPERATURE).to(device)
+    model2 = CoSTEncoder_second(P.TEMPERATURE).to(device)
+    min_val_loss = np.inf
+    optimizer1 = torch.optim.Adam(model1.parameters(), lr=P.LEARN, weight_decay=P.weight_decay)
+    optimizer2 = torch.optim.Adam(model2.parameters(), lr=P.LEARN, weight_decay=P.weight_decay)
+    s_time = datetime.now()
+    for epoch in range(P.PRETRN_EPOCH):
+        starttime = datetime.now()
+        model1.train()
+        model2.train()
+        x = pretrain_iter.dataset.tensors
+        optimizer1.zero_grad()
+        masking1 = edge_masking(adj_train, 0.02, device)
+        masking2 = edge_masking(adj_train, 0.02, device)
+        loss1 = model1.contrast(x[0].to(device), masking1, masking2, 0)
+        loss1.backward()
+        optimizer1.step()
+        trend1, season1 = model1(x[0].to(device), masking1)
+        trend2, season2 = model1(x[0].to(device), masking2)
+        x1 = torch.cat((trend1, season1), dim=1)
+        x2 = torch.cat((trend2, season2), dim=1)
+        optimizer2.zero_grad()
+        loss2 = model2.contrast(x1, x2, 0)
+        train_loss = loss2 / x[0].shape[0]
+        if P.is_testunseen:
+            sensor_idx_start = len(spatialSplit_allNod.i_trn)
+        else:
+            sensor_idx_start = 0
+        val_loss = pre_evaluateModel_CoST(model1, model2, preval_iter, adj_val_u, sensor_idx_start)
+        if val_loss < min_val_loss:
+            min_val_loss = val_loss
+            torch.save(model1.state_dict(), P.PATH + '/' + name + '1.pt')
+            torch.save(model2.state_dict(), P.PATH + '/' + name + '2.pt')
+        endtime = datetime.now()
+        epoch_time = (endtime - starttime).seconds
+        print("epoch", epoch, "time used:", epoch_time," seconds ", "train loss:", train_loss, "validation loss:", val_loss)
+        with open(P.PATH + '/' + name + '_log.txt', 'a') as f:
+            f.write("%s, %d, %s, %d, %s, %s, %.10f, %s, %.10f\n" % ("epoch", epoch, "time used", epoch_time, "seconds", "train loss", train_loss, "validation loss:", val_loss))
+    e_time = datetime.now()
+    print('PRETIME DURATION:', e_time, '-', s_time, '=', e_time-s_time)
+    print('pretrainModel Ended ...', time.ctime())
+
+
+
 def trainModel(name, mode, 
         train_iter, val_u_iter, val_a_iter,
         adj_train, adj_val_u, adj_val_a,
@@ -222,13 +282,31 @@ def trainModel(name, mode,
     s_time = datetime.now()
     print('Model Training Started ...', s_time)
     if P.IS_PRETRN:
-        encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
-        encoder.eval()
-        with torch.no_grad():
-            encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
-            train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device), adj_train).T.detach()
-            val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device).float().T, adj_val_u).T.detach()
-            val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device).float().T, adj_val_a).T.detach()
+        if P.is_cost == True:
+            encoder1 = CoSTEncoder_first(1, 32, P.kernals, P.alpha, P.TEMPERATURE).to(device)
+            encoder2 = CoSTEncoder_second(P.TEMPERATURE).to(device)
+            encoder1.eval()
+            encoder2.eval()
+            with torch.no_grad():
+                encoder1.load_state_dict(torch.load(P.PATH+ '/' + 'cost1' + '.pt'))
+                encoder2.load_state_dict(torch.load(P.PATH+ '/' + 'cost2' + '.pt'))
+                train_embed_trend, train_embed_season = encoder1(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device), adj_train)
+                train_embed_combined = torch.cat((train_embed_trend, train_embed_season), dim=1)
+                train_embed = encoder2(train_embed_combined).T.detach()
+                val_u_embed_trend, val_u_embed_season = encoder1(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device).float().T, adj_val_u)
+                val_u_embed_combined = torch.cat((val_u_embed_trend, val_u_embed_season), dim=1)
+                val_u_embed = encoder2(val_u_embed_combined).T.detach()
+                val_a_embed_trend, val_a_embed_season = encoder1(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device).float().T, adj_val_a)
+                val_a_embed_combined = torch.cat((val_a_embed_trend, val_a_embed_season), dim=1)
+                val_a_embed = encoder2(val_a_embed_combined).T.detach()
+        else:
+            encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
+            encoder.eval()
+            with torch.no_grad():
+                encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
+                train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device), adj_train).T.detach()
+                val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device).float().T, adj_val_u).T.detach()
+                val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device).float().T, adj_val_a).T.detach()
     else:
         train_embed = torch.zeros(32, train_iter.dataset.tensors[0].shape[2]).to(device).detach()
         val_u_embed = torch.zeros(32, val_u_iter.dataset.tensors[0].shape[2]).to(device).detach()
@@ -297,9 +375,17 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
     print('Model Testing', mode, 'Started ...', time.ctime())
     print('TIMESTEP_IN, TIMESTEP_OUT', P.TIMESTEP_IN, P.TIMESTEP_OUT)
     if P.IS_PRETRN:
-        encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
-        encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
-        encoder.eval()
+        if P.is_cost == True:
+            encoder1 = CoSTEncoder_first(1, 32, P.kernals, P.alpha, P.TEMPERATURE).to(device)
+            encoder2 = CoSTEncoder_second(P.TEMPERATURE).to(device)
+            encoder1.load_state_dict(torch.load(P.PATH+ '/' + 'cost1' + '.pt'))
+            encoder2.load_state_dict(torch.load(P.PATH+ '/' + 'cost2' + '.pt'))
+            encoder1.eval()
+            encoder2.eval()
+        else:
+            encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
+            encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
+            encoder.eval()
     model = getModel(name, device)
     model.load_state_dict(torch.load(P.PATH+ '/' + name +mode[-2:]+ '.pt'))
     s_time = datetime.now()
@@ -307,8 +393,14 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
     print('Model Infer Start ...', s_time)
     tst_embed = torch.zeros(32, test_iter.dataset.tensors[0].shape[2]).to(device).detach()
     if P.IS_PRETRN:
-        with torch.no_grad():
-            tst_embed = encoder(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device).float().T, adj_tst).T.detach()
+        if P.is_cost == True:
+            with torch.no_grad():
+                tst_embed_trend, tst_embed_season = encoder1(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device).float().T, adj_tst)
+                tst_embed_combined = torch.cat((tst_embed_trend, tst_embed_season), dim=1)
+                tst_embed = encoder2(tst_embed_combined).T.detach()
+        else:
+            with torch.no_grad():
+                tst_embed = encoder(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device).float().T, adj_tst).T.detach()
 
     m_time = datetime.now()
     print('ENCODER INFER DURATION:', m_time, '-', s_time, '=', m_time-s_time)
@@ -349,7 +441,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
 
 
 P = type('Parameters', (object,), {})()
-P.DATANAME = 'PEMSBAY'
+P.DATANAME = 'METRLA'
 P.MODEL = 'LSTM'
 P.seed = 0
 P.T_TRN = 0.7
@@ -361,10 +453,12 @@ P.TIMESTEP_OUT = 12
 P.CHANNEL = 1
 P.BATCHSIZE = 64
 P.hidden_dim = 128
+P.kernals = [1, 2, 4, 8, 16, 32, 64, 128]
+P.alpha = 0.5
 P.TEMPERATURE = 1
 P.LEARN = 0.001
-P.PRETRN_EPOCH = 50
-P.EPOCH = 50
+P.PRETRN_EPOCH = 1
+P.EPOCH = 1
 P.weight_decay = 0
 P.IS_PRETRN = True
 P.is_adp_adj = True
@@ -373,6 +467,7 @@ P.is_GCN = True
 P.is_sampler = False
 # not possible: gcn false and sampler false
 P.is_testunseen = True
+P.is_cost = False
 
 if torch.backends.mps.is_available():
     device = torch.device('mps') 
@@ -404,7 +499,10 @@ def main():
     # Now, only use pretrn_iter for encoding
     save_parameters(P, P.PATH + '/' + 'parameters.txt')
     if P.IS_PRETRN:
-        pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device, spatialSplit_allNod)
+        if P.is_cost == True:
+            pretrainModel_CoST('cost', pretrn_iter, preval_iter, adj_train, adj_val_u, device, spatialSplit_allNod)
+        else:
+            pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device, spatialSplit_allNod)
     # print(edge_masking(adj_train, 0.9, device))
     trainModel(P.MODEL, 'train',
         train_iter, val_u_iter, val_a_iter,

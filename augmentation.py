@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import random
 
 def edge_masking(adj_matrix, rem, device='cpu'):
     """
@@ -30,3 +31,23 @@ def edge_masking(adj_matrix, rem, device='cpu'):
         output.append(A_prime)
     # print('edge_masking output', output)
     return output
+
+
+# Data transformation
+def transform(x, p, sigma):
+    return jitter(shift(scale(x)))
+
+def jitter(x):
+    if random.random() > p:
+        return x
+    return x + (torch.randn(x.shape) * sigma)
+
+def scale(self, x):
+    if random.random() > self.p:
+        return x
+    return x * (torch.randn(x.size(-1)) * self.sigma + 1)
+
+def shift(self, x):
+    if random.random() > self.p:
+        return x
+    return x + (torch.randn(x.size(-1)) * self.sigma)

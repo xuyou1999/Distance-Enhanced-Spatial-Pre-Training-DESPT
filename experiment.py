@@ -11,6 +11,17 @@ from augmentation import *
 from model import *
 import Metrics
 
+class StandardScaler:
+    def __init__(self):
+        self.u = None
+        self.z = None
+    def fit_transform(self, x):
+        self.u = x.mean()
+        self.z = x.std()
+        return (x-self.u)/self.z
+    def inverse_transform(self, x):
+        return x * self.z + self.u
+
 def save_parameters(param_obj, filename):
     with open(filename, "w") as file:
         for attr in dir(param_obj):
@@ -327,9 +338,9 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
         YS_pred = YS_pred[:,:,len(spatialsplit.i_val):,:]
         YS = YS[:,:,len(spatialsplit.i_val):,:]
     print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
-    # original_shape = np.squeeze(YS).shape
-    # YS = scaler.inverse_transform(np.squeeze(YS).reshape(-1, YS.shape[2])).reshape(original_shape)
-    # YS_pred  = scaler.inverse_transform(np.squeeze(YS_pred).reshape(-1, YS_pred.shape[2])).reshape(original_shape)
+    original_shape = np.squeeze(YS).shape
+    YS = scaler.inverse_transform(np.squeeze(YS).reshape(-1, YS.shape[2])).reshape(original_shape)
+    YS_pred  = scaler.inverse_transform(np.squeeze(YS_pred).reshape(-1, YS_pred.shape[2])).reshape(original_shape)
     # print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
     # np.save(P.PATH + '/' + P.MODELNAME + '_' + mode + '_' + name +'_prediction.npy', YS_pred)
     # np.save(P.PATH + '/' + P.MODELNAME + '_' + mode + '_' + name +'_groundtruth.npy', YS)
@@ -383,6 +394,7 @@ def main():
     P.KEYWORD = 'pred_' + P.DATANAME + '_' + '_' + datetime.now().strftime("%y%m%d%H%M") + '_' + str(os.getpid())
     P.PATH = 'save/' + P.KEYWORD
     global data
+    global scaler
     if P.DATANAME == 'METRLA':
         print('P.DATANAME == METRLA')
         P.FLOWPATH = './data/METRLA/metr-la.h5'
@@ -397,6 +409,9 @@ def main():
         P.ADJPATH = './data/PEMSBAY/adj_mx_bay.pkl'
         P.N_NODE = 325
         data = pd.read_hdf(P.FLOWPATH).values
+    
+    scaler = StandardScaler()
+    data = scaler.fit_transform(data)
     print('data.shape:', data.shape)
     pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \
         train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \

@@ -175,7 +175,7 @@ def setups():
 
 def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device, spatialSplit_allNod):
     print('pretrainModel Started ...', time.ctime())
-    model = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
+    model = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler, len(adj_train)).to(device)
     min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.LEARN, weight_decay=P.weight_decay)
     s_time = datetime.now()
@@ -222,7 +222,7 @@ def trainModel(name, mode,
     s_time = datetime.now()
     print('Model Training Started ...', s_time)
     if P.IS_PRETRN:
-        encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
+        encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler, len(adj_train)).to(device)
         encoder.eval()
         with torch.no_grad():
             encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
@@ -297,7 +297,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
     print('Model Testing', mode, 'Started ...', time.ctime())
     print('TIMESTEP_IN, TIMESTEP_OUT', P.TIMESTEP_IN, P.TIMESTEP_OUT)
     if P.IS_PRETRN:
-        encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler).to(device)
+        encoder = Contrastive_FeatureExtractor_conv(P.TEMPERATURE, P.is_GCN, P.is_sampler, len(adj_tst)).to(device)
         encoder.load_state_dict(torch.load(P.PATH+ '/' + 'encoder' + '.pt'))
         encoder.eval()
     model = getModel(name, device)
@@ -349,7 +349,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit):
 
 
 P = type('Parameters', (object,), {})()
-P.DATANAME = 'PEMSBAY'
+P.DATANAME = 'METRLA'
 P.MODEL = 'LSTM'
 P.seed = 0
 P.T_TRN = 0.7
@@ -370,7 +370,7 @@ P.IS_PRETRN = True
 P.is_adp_adj = True
 P.is_SGA = False
 P.is_GCN = True
-P.is_sampler = False
+P.is_sampler = True
 # not possible: gcn false and sampler false
 P.is_testunseen = True
 
@@ -387,7 +387,7 @@ def main():
         print('P.DATANAME == METRLA')
         P.FLOWPATH = './data/METRLA/metr-la.h5'
         P.n_dct_coeff = 3918
-        P.ADJPATH = './data/METRLA/adj_mx.pkl'
+        P.ADJPATH = './data/METRLA/adj_mx_new.pkl'
         P.N_NODE = 207
         data = pd.read_hdf(P.FLOWPATH).values
     elif P.DATANAME == 'PEMSBAY':

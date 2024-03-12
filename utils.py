@@ -12,7 +12,12 @@ def load_pickle(pickle_file):
     return pickle_data
 
 def load_adj(pkl_filename, adjtpe, dataname):
-    if dataname == 'METRLA' or dataname == 'PEMSBAY':
+    if dataname == 'PEMSBAY':
         sensor_ids, sensor_id_to_ind, adj_mx = load_pickle(pkl_filename)
-    adj =  [adj_mx]
+        adj =  [adj_mx]
+    elif dataname == 'METRLA':
+        sensor_ids, sensor_id_to_ind, adj_mx = load_pickle(pkl_filename)
+        adj = []
+        adj.append(adj_mx)
+        adj.append(adj_mx.T)
     return adj

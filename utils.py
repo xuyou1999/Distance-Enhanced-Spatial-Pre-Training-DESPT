@@ -1,4 +1,7 @@
 import pickle
+import numpy as np
+import scipy.sparse as sp
+
 def load_pickle(pickle_file):
     try:
         with open(pickle_file, 'rb') as f:
@@ -11,13 +14,21 @@ def load_pickle(pickle_file):
         raise
     return pickle_data
 
-def load_adj(pkl_filename, adjtpe, dataname):
+def load_adj(pkl_filename, adjtype, dataname):
     if dataname == 'PEMSBAY':
         sensor_ids, sensor_id_to_ind, adj_mx = load_pickle(pkl_filename)
-        adj =  [adj_mx]
     elif dataname == 'METRLA':
         sensor_ids, sensor_id_to_ind, adj_mx = load_pickle(pkl_filename)
-        adj = []
-        adj.append(adj_mx)
-        adj.append(adj_mx.T)
+    if adjtype == "transition":
+        adj = [asym_adj(adj_mx)]
+    elif adjtype == "doubletransition":
+        adj = [asym_adj(adj_mx), asym_adj(adj_mx.T)]
     return adj
+
+def asym_adj(adj):
+    adj = sp.coo_matrix(adj)
+    rowsum = np.array(adj.sum(1)).flatten().astype(np.float64)  # Ensure floating-point calculations
+    d_inv = np.power(rowsum, -1).flatten()
+    d_inv[np.isinf(d_inv)] = 0.
+    d_mat = sp.diags(d_inv)
+    return np.array(d_mat.dot(adj).astype(np.float32).todense())

@@ -26,9 +26,12 @@ def load_adj(pkl_filename, adjtype, dataname):
     return adj
 
 def asym_adj(adj):
+    np.fill_diagonal(adj, 0)
     adj = sp.coo_matrix(adj)
     rowsum = np.array(adj.sum(1)).flatten().astype(np.float64)  # Ensure floating-point calculations
     d_inv = np.power(rowsum, -1).flatten()
     d_inv[np.isinf(d_inv)] = 0.
     d_mat = sp.diags(d_inv)
-    return np.array(d_mat.dot(adj).astype(np.float32).todense())
+    output = np.array(d_mat.dot(adj).astype(np.float32).todense())
+    np.fill_diagonal(output, 1)
+    return output

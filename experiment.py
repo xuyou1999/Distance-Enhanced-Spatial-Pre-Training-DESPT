@@ -468,6 +468,12 @@ def main():
         P.adj_path = './data/PEMSBAY/adj_mx_bay.pkl'
         P.n_sensor = 325
         data = pd.read_hdf(P.data_path).values
+    elif P.dataname == 'HAGUE':
+        print('P.dataname == HAGUE')
+        P.data_path = './data/Hauge/hague_filled.h5'
+        P.adj_path = './data/Hauge/adj_mx.pkl'
+        P.n_sensor = 144
+        data = pd.read_hdf(P.data_path).values
     scaler = StandardScaler()
     data = scaler.fit_transform(data)
     print('data.shape:', data.shape)

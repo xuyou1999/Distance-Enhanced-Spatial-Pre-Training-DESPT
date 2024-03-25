@@ -19,6 +19,8 @@ def load_adj(pkl_filename, adjtype, dataname):
         sensor_ids, sensor_id_to_ind, adj_mx = load_pickle(pkl_filename)
     elif dataname == 'METRLA':
         sensor_ids, sensor_id_to_ind, adj_mx = load_pickle(pkl_filename)
+    elif dataname == 'HAGUE':
+        sensor_ids, sensor_id_to_ind, adj_mx = load_pickle(pkl_filename)
     
     if adjtype == "transition":
         adj = [asym_adj(adj_mx)]

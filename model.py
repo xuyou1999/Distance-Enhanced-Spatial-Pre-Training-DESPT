@@ -233,9 +233,10 @@ class gwnet(nn.Module):
     
 # LSTM model for univariate time series forecasting using Pytorch
 class LSTM_uni(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim = 12, layer_dim=1, dropout_prob = 0.2, device = 'cpu'):
+    def __init__(self, input_dim, lstm_input_dim, hidden_dim, output_dim = 12, layer_dim=1, dropout_prob = 0.2, device = 'cpu'):
         super(LSTM_uni, self).__init__()
         self.input_dim = input_dim
+        self.lstm_input_dim = lstm_input_dim
         self.output_dim = output_dim
         self.hidden_dim = hidden_dim # number of hidden units in hidden state
         self.layer_dim = layer_dim # number of stacked lstm layers
@@ -245,17 +246,21 @@ class LSTM_uni(nn.Module):
         self.start_conv = nn.Conv2d(in_channels=input_dim,
                                     out_channels=32,
                                     kernel_size=(1,1))
-        self.lstm = nn.LSTM(32, hidden_dim, layer_dim, batch_first=True, dropout=dropout_prob)
+        self.lstm = nn.LSTM(lstm_input_dim, hidden_dim, layer_dim, batch_first=True, dropout=dropout_prob)
         self.fc = nn.Linear(hidden_dim, output_dim) # fully connected layer
 
-    def forward(self, x, e, future=False):
+    def forward(self, x, e, alpha, is_concat, future=False):
         # Transform x to the shape (batch_dim, seq_dim, feature_dim)
         batch_size = x.size(0)
         sensor_size = x.size(2)
         x = self.start_conv(x)
-        x = x + e.unsqueeze(0).unsqueeze(-1).expand(x.shape[0],-1,-1,x.shape[-1])
+        new_e = alpha * e.unsqueeze(0).unsqueeze(-1).expand(x.shape[0],-1,-1,x.shape[-1])
+        if is_concat:
+            x = torch.cat((x, new_e), dim=1)
+        else:
+            x = x + new_e
         x = x.permute(0, 2, 3, 1)
-        x = x.contiguous().view(-1, 12, 32)
+        x = x.contiguous().view(-1, 12, self.lstm_input_dim)
         # hidden and cell states are expected along with input x in LSTMs = (h_0, c_0)
         # Initialize hidden state with zeros (layer_dim, batch_size, hidden_dim)
         h0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim, device=self.device).requires_grad_()

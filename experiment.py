@@ -45,7 +45,13 @@ def getModel(name, device):
     if name == 'gwnet':
         model = gwnet(device, num_nodes=P.n_sensor, in_dim=P.n_channel, adp_adj=P.gwnet_is_adp_adj, sga=P.gwnet_is_SGA).to(device)
     elif name == 'LSTM':
-        model = LSTM_uni(input_dim=P.n_channel, hidden_dim=P.gwnet_hidden_dim, device=device).to(device)
+        if P.is_pretrain == False:
+            lstm_input_dim = 32
+        elif P.is_concat_encoder_model:
+            lstm_input_dim = 64
+        else:
+            lstm_input_dim = 32
+        model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, device=device).to(device)
     return model
 
 def getXSYS(data, mode):
@@ -87,7 +93,7 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
             if P.model == 'gwnet':
                 y_pred = model(x.to(device), adj, embed)
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device), embed)
+                y_pred = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model)
             y_pred = y_pred[:,:,sensor_idx_start:,]
             y = y[:,:,sensor_idx_start:,]
             l = criterion(y_pred, y.to(device))
@@ -103,7 +109,7 @@ def predictModel(model, data_iter, adj, embed, device):
             if P.model == 'gwnet':
                 YS_pred_batch = model(x.to(device), adj, embed)
             elif P.model == 'LSTM':
-                YS_pred_batch = model(x.to(device), embed)
+                YS_pred_batch = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model)
             YS_pred_batch = YS_pred_batch.cpu().numpy()
             YS_pred.append(YS_pred_batch)
         YS_pred = np.vstack(YS_pred)
@@ -218,7 +224,6 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
         starttime = datetime.now()
         model.train()
         x = pretrain_iter.dataset.tensors
-        print('x[0].shape', x[0].shape)
         optimizer.zero_grad()
         if P.augmentation == 'edge_masking':
             loss = model.contrast(x[0].to(device), x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device), 0)
@@ -315,7 +320,7 @@ def trainModel(name, mode,
             if P.model == 'gwnet':
                 y_pred = model(x.to(device_gpu), adj_train, train_embed)
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device_gpu), train_embed)
+                y_pred = model(x.to(device_gpu), train_embed, P.encoder_to_model_ratio, P.is_concat_encoder_model)
             loss = criterion(y_pred, y.to(device_gpu))
             loss.backward()
             optimizer.step()
@@ -448,7 +453,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
 # P.n_channel = 1
 # P.batch_size = 64
 
-# P.gwnet_hidden_dim = 128
+# P.lstm_hidden_dim = 128
 # P.gwnet_is_adp_adj = True
 # P.gwnet_is_SGA = False
 
@@ -457,6 +462,8 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
 # P.is_pretrain = True
 # P.is_GCN = True
 # P.augmentation = 'sampler'
+# P.encoder_to_model_ratio = 1
+# P.is_concat_encoder_model = True
 
 # P.learn_rate = 0.001
 # P.pretrain_epoch = 2
@@ -469,6 +476,8 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
 
 
 def main():
+    if P.is_pretrain == False:
+        P.is_concat_encoder_model = False
     global data
     global scaler
 

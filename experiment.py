@@ -139,10 +139,13 @@ def setups(device):
     print('spatialSplit_unseen', spatialSplit_unseen)
     print('spatialSplit_allNod', spatialSplit_allNod)
     # print(spatialSplit_allNod.i_trn)
+    # print(spatialSplit_unseen.i_trn)
     # print(spatialSplit_allNod.i_val)
     # print(spatialSplit_unseen.i_tst)
-    XS_torch_train = torch.Tensor(XS_torch_trn[:,:,spatialSplit_unseen.i_trn,:])
-    YS_torch_train = torch.Tensor(YS_torch_trn[:,:,spatialSplit_unseen.i_trn,:])
+    XS_torch_train = torch.Tensor(XS_torch_trn[:,:,spatialSplit_allNod.i_trn,:])
+    YS_torch_train = torch.Tensor(YS_torch_trn[:,:,spatialSplit_allNod.i_trn,:])
+    XS_torch_train_model = torch.Tensor(XS_torch_val[:,:,spatialSplit_allNod.i_trn,:])
+    YS_torch_train_model = torch.Tensor(YS_torch_val[:,:,spatialSplit_allNod.i_trn,:])
     XS_torch_val_u = torch.Tensor(XS_torch_val[:,:,spatialSplit_unseen.i_val,:])
     YS_torch_val_u = torch.Tensor(YS_torch_val[:,:,spatialSplit_unseen.i_val,:])
     XS_torch_val_a = torch.Tensor(XS_torch_val[:,:,spatialSplit_allNod.i_val,:])
@@ -152,18 +155,21 @@ def setups(device):
     XS_torch_tst_a = torch.Tensor(testXS[:,:,spatialSplit_allNod.i_tst,:])
     YS_torch_tst_a = torch.Tensor(testYS[:,:,spatialSplit_allNod.i_tst,:])
     print('train.shape', XS_torch_train.shape, YS_torch_train.shape)
+    print('train_model.shape', XS_torch_train_model.shape, YS_torch_train_model.shape)
     print('val_u.shape', XS_torch_val_u.shape, YS_torch_val_u.shape)
     print('val_a.shape', XS_torch_val_a.shape, YS_torch_val_a.shape)
     print('tst_u.shape', XS_torch_tst_u.shape, YS_torch_tst_u.shape)
     print('tst_a.shape', XS_torch_tst_a.shape, YS_torch_tst_a.shape)
     # torch dataset
     train_data = torch.utils.data.TensorDataset(XS_torch_train, YS_torch_train)
+    train_model_data = torch.utils.data.TensorDataset(XS_torch_train_model, YS_torch_train_model)
     val_u_data = torch.utils.data.TensorDataset(XS_torch_val_u, YS_torch_val_u)
     val_a_data = torch.utils.data.TensorDataset(XS_torch_val_a, YS_torch_val_a)
     tst_u_data = torch.utils.data.TensorDataset(XS_torch_tst_u, YS_torch_tst_u)
     tst_a_data = torch.utils.data.TensorDataset(XS_torch_tst_a, YS_torch_tst_a)
     # torch dataloader
     train_iter = torch.utils.data.DataLoader(train_data, P.batch_size, shuffle=True)
+    train_model_iter = torch.utils.data.DataLoader(train_model_data, P.batch_size, shuffle=True)
     val_u_iter = torch.utils.data.DataLoader(val_u_data, P.batch_size, shuffle=False)
     val_a_iter = torch.utils.data.DataLoader(val_a_data, P.batch_size, shuffle=False)
     tst_u_iter = torch.utils.data.DataLoader(tst_u_data, P.batch_size, shuffle=False)
@@ -191,11 +197,13 @@ def setups(device):
     print('pretrn_iter.dataset.tensors[0].shape', pretrn_iter.dataset.tensors[0].shape)
     print('preval_iter.dataset.tensors[0].shape', preval_iter.dataset.tensors[0].shape)
     return pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \
-        train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
+        train_iter, train_model_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a
 
 def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device, spatialSplit_allNod):
     print('pretrainModel Started ...')
+    adj_train = [tensor.to(device) for tensor in adj_train]
+    adj_val_u = [tensor.to(device) for tensor in adj_val_u]
     if P.augmentation == 'sampler':
         is_sampler = True
     else:
@@ -249,9 +257,9 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
     print('pretrainModel Ended ...\n')
 
 def trainModel(name, mode, 
-        train_iter, val_u_iter, val_a_iter,
+        train_iter, train_model_iter, val_u_iter, val_a_iter,
         adj_train, adj_val_u, adj_val_a,
-        spatialSplit_unseen, spatialSplit_allNod, device):
+        spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu):
     print('trainModel Started ...')
     print('TIMESTEP_IN, TIMESTEP_OUT', P.timestep_in, P.timestep_out)
 
@@ -260,40 +268,50 @@ def trainModel(name, mode,
     else:
         is_sampler = False
 
-    model = getModel(name, device)
+    model = getModel(name, device_gpu)
     min_val_u_loss = np.inf
     min_val_a_loss = np.inf
     criterion = nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
     s_time = datetime.now()
+    adj_train = [tensor.to(device_cpu) for tensor in adj_train]
+    adj_val_u = [tensor.to(device_cpu) for tensor in adj_val_u]
+    adj_val_a = [tensor.to(device_cpu) for tensor in adj_val_a]
     if P.is_pretrain:
-        encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device)
+        encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device_cpu)
         encoder.eval()
         with torch.no_grad():
             encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
-            train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device), adj_train).T.detach()
-            val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device).float().T, adj_val_u).T.detach()
-            val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device).float().T, adj_val_a).T.detach()
+            train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device_cpu), adj_train).T.detach().to(device_gpu)
+            val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device_cpu).float().T, adj_val_u).T.detach().to(device_gpu)
+            val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device_cpu).float().T, adj_val_a).T.detach().to(device_gpu)
     else:
-        train_embed = torch.zeros(32, train_iter.dataset.tensors[0].shape[2]).to(device).detach()
-        val_u_embed = torch.zeros(32, val_u_iter.dataset.tensors[0].shape[2]).to(device).detach()
-        val_a_embed = torch.zeros(32, val_a_iter.dataset.tensors[0].shape[2]).to(device).detach()
+        train_embed = torch.zeros(32, train_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
+        val_u_embed = torch.zeros(32, val_u_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
+        val_a_embed = torch.zeros(32, val_a_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
+    adj_train = [tensor.to(device_gpu) for tensor in adj_train]
+    adj_val_u = [tensor.to(device_gpu) for tensor in adj_val_u]
+    adj_val_a = [tensor.to(device_gpu) for tensor in adj_val_a]
     m_time = datetime.now()
     print('ENCODER INFER DURATION IN MODEL TRAINING:', m_time-s_time)
     print('train_embed', train_embed.shape, train_embed.mean(), train_embed.std())
     print('val_u_embed', val_u_embed.shape, val_u_embed.mean(), val_u_embed.std())
     print('val_a_embed', val_a_embed.shape, val_a_embed.mean(), val_a_embed.std())
+    if P.train_model_datasplit == 'A':
+        model_input = train_iter
+    elif P.train_model_datasplit == 'B':
+        model_input = train_model_iter
     for epoch in range(P.train_epoch):
         starttime = datetime.now()     
         loss_sum, n = 0.0, 0
         model.train()
-        for x, y in train_iter:
+        for x, y in model_input:
             optimizer.zero_grad()
             if P.model == 'gwnet':
-                y_pred = model(x.to(device), adj_train, train_embed)
+                y_pred = model(x.to(device_gpu), adj_train, train_embed)
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device), train_embed)
-            loss = criterion(y_pred, y.to(device))
+                y_pred = model(x.to(device_gpu), train_embed)
+            loss = criterion(y_pred, y.to(device_gpu))
             loss.backward()
             optimizer.step()
             loss_sum += loss.item() * y.shape[0]
@@ -303,8 +321,8 @@ def trainModel(name, mode,
             sensor_idx_start = len(spatialSplit_allNod.i_trn)
         else:
             sensor_idx_start = 0
-        val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed, device, 0)
-        val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, device, sensor_idx_start)
+        val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed, device_gpu, 0)
+        val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, device_gpu, sensor_idx_start)
         if val_u_loss < min_val_u_loss:
             min_val_u_loss = val_u_loss
             torch.save(model.state_dict(), P.save_path + '/' + name + '_u.pt')
@@ -327,7 +345,7 @@ def trainModel(name, mode,
                  "validation all nodes loss:", val_a_loss))
     e_time = datetime.now()
     print('MODEL TRAINING DURATION:', e_time-m_time)
-    torch_score = evaluateModel(model, criterion, train_iter, adj_train, train_embed, device, 0)
+    torch_score = evaluateModel(model, criterion, model_input, adj_train, train_embed, device_gpu, 0)
     # Write the final results to the log file
     df = pd.read_csv('save/results.csv')
     row_exists = 'exe_id' in df.columns and any(df['exe_id'] == P.exe_id)
@@ -341,7 +359,7 @@ def trainModel(name, mode,
         f.write("%s, %s, %s, %.10e, %.10f\n" % (name, mode, 'MAE on train', torch_score, torch_score))
     print('trainModel Ended ...\n')
 
-def testModel(name, mode, test_iter, adj_tst, spatialsplit, device):
+def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_gpu):
     criterion = nn.L1Loss()
     print('Model Testing', mode, 'Started ...')
 
@@ -351,31 +369,32 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device):
         is_sampler = False
     
     if P.is_pretrain:
-        encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_tst)).to(device)
+        encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_tst)).to(device_cpu)
         encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
         encoder.eval()
-    model = getModel(name, device)
+    model = getModel(name, device_gpu)
     model.load_state_dict(torch.load(P.save_path+ '/' + name +mode[-2:]+ '.pt'))
     s_time = datetime.now()
     
     print('Model Infer Start ...')
-    tst_embed = torch.zeros(32, test_iter.dataset.tensors[0].shape[2]).to(device).detach()
+    tst_embed = torch.zeros(32, test_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
+    adj_tst = [tensor.to(device_cpu) for tensor in adj_tst]
     if P.is_pretrain:
         with torch.no_grad():
-            tst_embed = encoder(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device).float().T, adj_tst).T.detach()
-
+            tst_embed = encoder(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device_cpu).float().T, adj_tst).T.detach().to(device_gpu)
+    adj_tst = [tensor.to(device_gpu) for tensor in adj_tst]
     m_time = datetime.now()
     print('ENCODER INFER DURATION:', m_time-s_time)
     if P.is_testunseen:
         sensor_idx_start = len(spatialsplit.i_val)
     else:
         sensor_idx_start = 0
-    torch_score = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, device, sensor_idx_start)
+    torch_score = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, device_gpu, sensor_idx_start)
     e_time = datetime.now()
     print('Model Infer End ...', e_time)
     
     print('MODEL INFER DURATION:', e_time-m_time)
-    YS_pred = predictModel(model, test_iter, adj_tst, tst_embed, device)
+    YS_pred = predictModel(model, test_iter, adj_tst, tst_embed, device_gpu)
     YS = test_iter.dataset.tensors[1].cpu().numpy()
     if P.is_testunseen:
         YS_pred = YS_pred[:,:,len(spatialsplit.i_val):,:]
@@ -439,6 +458,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device):
 # P.train_epoch = 1
 # P.weight_decay = 0
 # P.is_testunseen = True
+# P.train_model_datasplit = 'B'
 
 # not possible: gcn false and sampler false
 
@@ -449,9 +469,10 @@ def main():
 
     # Check backend availability
     if torch.backends.mps.is_available():
-        device = torch.device('mps') 
+        device_gpu = torch.device('mps') 
     if torch.cuda.is_available():
-        device = torch.device('cuda')
+        device_gpu = torch.device('cuda')
+    device_cpu = torch.device('cpu')
 
     # load data from file
     P.exe_id = P.dataname + '_' + datetime.now().strftime("%y%m%d-%H%M")
@@ -486,21 +507,21 @@ def main():
 
     # setup
     pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \
-        train_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
-        adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups(device)
+        train_iter, train_model_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
+        adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups(device_gpu)
     
     # save parameters
     save_parameters(P, 'save/parameters.csv')
     
     if P.is_pretrain:
-        pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device, spatialSplit_allNod)
-
-    trainModel(P.model, 'train',
-        train_iter, val_u_iter, val_a_iter,
-        adj_train, adj_val_u, adj_val_a,
-        spatialSplit_unseen, spatialSplit_allNod, device)
+        pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_cpu, spatialSplit_allNod)
     
-    testModel(P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device)
+    trainModel(P.model, 'train',
+        train_iter, train_model_iter, val_u_iter, val_a_iter,
+        adj_train, adj_val_u, adj_val_a,
+        spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu)
+    
+    testModel(P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device_cpu, device_gpu)
 
 
 if __name__ == '__main__':

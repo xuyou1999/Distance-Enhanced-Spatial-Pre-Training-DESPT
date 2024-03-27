@@ -71,9 +71,11 @@ def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
     with torch.no_grad():
         x = data_iter.dataset.tensors
         if P.augmentation == 'edge_masking':
-            l = model.contrast(x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device), sensor_idx_start)
-        else:
-            l = model.contrast(x[0].to(device), adj, adj, sensor_idx_start)
+            l = model.contrast(x[0].to(device), x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device), sensor_idx_start)
+        elif P.augmentation == 'sampler':
+            l = model.contrast(x[0].to(device), x[0].to(device), adj, adj, sensor_idx_start)
+        elif P.augmentation == 'temporal_shifting':
+            l = model.contrast(temporal_shifting(x[0], 0.5).to(device),temporal_shifting(x[0], 0.5).to(device), adj, adj, sensor_idx_start)
         return l / x[0].shape[0]
 
 def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start=0):
@@ -114,7 +116,7 @@ def setups(device):
     # seed
     torch.manual_seed(P.seed)
     torch.cuda.manual_seed(P.seed)
-    np.random.seed(P.seed)
+    # np.random.seed(P.seed)
     print(P.exe_id, 'data splits')
     # test split temporal
     trainXS, trainYS = getXSYS(data, 'TRAIN')
@@ -216,11 +218,14 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
         starttime = datetime.now()
         model.train()
         x = pretrain_iter.dataset.tensors
+        print('x[0].shape', x[0].shape)
         optimizer.zero_grad()
         if P.augmentation == 'edge_masking':
-            loss = model.contrast(x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device), 0)
-        else:
-            loss = model.contrast(x[0].to(device), adj_train, adj_train, 0)
+            loss = model.contrast(x[0].to(device), x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device), 0)
+        elif P.augmentation == 'sampler':
+            loss = model.contrast(x[0].to(device), x[0].to(device), adj_train, adj_train, 0)
+        elif P.augmentation == 'temporal_shifting':
+            loss = model.contrast(temporal_shifting(x[0], 0.5).to(device),temporal_shifting(x[0], 0.5).to(device), adj_train, adj_train, 0)
         loss.backward()
         optimizer.step()
         train_loss = loss / x[0].shape[0]

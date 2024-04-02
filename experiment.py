@@ -84,7 +84,7 @@ def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
             l = model.contrast(temporal_shifting(x[0], 0.5).to(device),temporal_shifting(x[0], 0.5).to(device), adj, adj, sensor_idx_start)
         return l / x[0].shape[0]
 
-def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start=0):
+def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start):
     model.eval()
     torch.cuda.empty_cache()
     l_sum, n = 0.0, 0
@@ -500,7 +500,7 @@ def main():
     elif P.dataname == 'PEMSBAY':
         print('P.dataname == PEMSBAY')
         P.data_path = './data/PEMSBAY/pems-bay.h5'
-        P.adj_path = './data/PEMSBAY/adj_mx_bay.pkl'
+        P.adj_path = './data/PEMSBAY/adj_mx_new.pkl'
         P.n_sensor = 325
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'HAGUE':

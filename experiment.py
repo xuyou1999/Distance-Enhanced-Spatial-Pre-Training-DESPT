@@ -216,7 +216,10 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
         is_sampler = True
     else:
         is_sampler = False
-    model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device)
+    if P.is_cost:
+        model = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device)
+    else:
+        model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device)
     min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
     s_time = datetime.now()
@@ -272,6 +275,10 @@ def trainModel(name, mode,
         spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu):
     print('trainModel Started ...')
     print('TIMESTEP_IN, TIMESTEP_OUT', P.timestep_in, P.timestep_out)
+    if P.train_encoder_on == 'cpu':
+        device_encoder = device_cpu
+    else:
+        device_encoder = device_gpu
 
     if P.augmentation == 'sampler':
         is_sampler = True
@@ -284,17 +291,20 @@ def trainModel(name, mode,
     criterion = nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
     s_time = datetime.now()
-    adj_train = [tensor.to(device_cpu) for tensor in adj_train]
-    adj_val_u = [tensor.to(device_cpu) for tensor in adj_val_u]
-    adj_val_a = [tensor.to(device_cpu) for tensor in adj_val_a]
+    adj_train = [tensor.to(device_encoder) for tensor in adj_train]
+    adj_val_u = [tensor.to(device_encoder) for tensor in adj_val_u]
+    adj_val_a = [tensor.to(device_encoder) for tensor in adj_val_a]
     if P.is_pretrain:
-        encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device_cpu)
+        if P.is_cost:
+            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device_encoder)
+        else:
+            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device_encoder)
         encoder.eval()
         with torch.no_grad():
             encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
-            train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device_cpu), adj_train).T.detach().to(device_gpu)
-            val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device_cpu).float().T, adj_val_u).T.detach().to(device_gpu)
-            val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device_cpu).float().T, adj_val_a).T.detach().to(device_gpu)
+            train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device_encoder), adj_train).T.detach().to(device_gpu)
+            val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device_encoder).float().T, adj_val_u).T.detach().to(device_gpu)
+            val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device_encoder).float().T, adj_val_a).T.detach().to(device_gpu)
     else:
         train_embed = torch.zeros(32, train_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
         val_u_embed = torch.zeros(32, val_u_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
@@ -372,6 +382,10 @@ def trainModel(name, mode,
 def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_gpu):
     criterion = nn.L1Loss()
     print('Model Testing', mode, 'Started ...')
+    if P.train_encoder_on == 'cpu':
+        device_encoder = device_cpu
+    else:
+        device_encoder = device_gpu
 
     if P.augmentation == 'sampler':
         is_sampler = True
@@ -379,7 +393,10 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
         is_sampler = False
     
     if P.is_pretrain:
-        encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_tst)).to(device_cpu)
+        if P.is_cost:
+            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN, is_sampler, len(adj_tst)).to(device_encoder)
+        else:
+            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_tst)).to(device_encoder)
         encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
         encoder.eval()
     model = getModel(name, device_gpu)
@@ -388,10 +405,10 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     
     print('Model Infer Start ...')
     tst_embed = torch.zeros(32, test_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
-    adj_tst = [tensor.to(device_cpu) for tensor in adj_tst]
+    adj_tst = [tensor.to(device_encoder) for tensor in adj_tst]
     if P.is_pretrain:
         with torch.no_grad():
-            tst_embed = encoder(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device_cpu).float().T, adj_tst).T.detach().to(device_gpu)
+            tst_embed = encoder(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device_encoder).float().T, adj_tst).T.detach().to(device_gpu)
     adj_tst = [tensor.to(device_gpu) for tensor in adj_tst]
     m_time = datetime.now()
     print('ENCODER INFER DURATION:', m_time-s_time)
@@ -458,6 +475,9 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
 # P.gwnet_is_SGA = False
 
 # P.adj_type = 'doubletransition'
+# P.is_cost = True
+# P.cost_kernals = [1, 2, 4, 8, 16, 32, 64, 128]
+# P.cost_alpha = 0.5
 # P.cl_temperature = 1
 # P.is_pretrain = True
 # P.is_GCN = True
@@ -471,6 +491,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
 # P.weight_decay = 0
 # P.is_testunseen = True
 # P.train_model_datasplit = 'B'
+# P.train_encoder_on = 'cpu'
 
 # not possible: gcn false and sampler false
 
@@ -528,8 +549,11 @@ def main():
     save_parameters(P, 'save/parameters.csv')
     
     if P.is_pretrain:
-        pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_cpu, spatialSplit_allNod)
-    
+        if P.train_encoder_on == 'cpu':
+            pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_u, device_cpu, spatialSplit_allNod)
+        else:
+            pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_gpu, spatialSplit_allNod)
+
     trainModel(P.model, 'train',
         train_iter, train_model_iter, val_u_iter, val_a_iter,
         adj_train, adj_val_u, adj_val_a,

@@ -254,9 +254,10 @@ class LSTM_uni(nn.Module):
         batch_size = x.size(0)
         sensor_size = x.size(2)
         x = self.start_conv(x)
-        new_e = alpha * e.unsqueeze(0).unsqueeze(-1).expand(x.shape[0],-1,-1,x.shape[-1])
+        e = e.unsqueeze(0).unsqueeze(-1).expand(x.shape[0],-1,-1,x.shape[-1])
+        new_e = alpha * e
         if is_concat:
-            x = torch.cat((x, new_e), dim=1)
+            x = torch.cat((x, e), dim=1)
         else:
             x = x + new_e
         x = x.permute(0, 2, 3, 1)

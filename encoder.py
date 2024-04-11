@@ -6,6 +6,34 @@ import math
 from typing import List
 import torch.fft as fft
 from einops import reduce, rearrange
+import gc
+
+def print_largest_cuda_tensors(n=10):
+    """
+    Print details of the largest tensors allocated on CUDA devices.
+    
+    Parameters:
+    - n (int): Number of top tensors to display. Defaults to 10.
+    """
+    # Function to get the size of a tensor in bytes
+    def tensor_size_in_bytes(tensor):
+        return tensor.element_size() * tensor.nelement()
+
+    # Collect all tensors that are on CUDA and currently alive
+    alive_tensors = [obj for obj in gc.get_objects() if torch.is_tensor(obj) and obj.is_cuda]
+
+    # Sort them by their memory footprint
+    sorted_tensors = sorted(alive_tensors, key=lambda x: tensor_size_in_bytes(x), reverse=True)
+
+    # Print the details of the top tensors
+    print("Top CUDA tensors by size (bytes):")
+    for tensor in sorted_tensors[:n]:  # Display top n tensors
+        print(f"Shape: {tensor.shape}, Size (bytes): {tensor_size_in_bytes(tensor)}, Device: {tensor.device}, Type: {tensor.dtype}")
+
+    # If you want to see the total allocated and reserved memory on all CUDA devices
+    for i in range(torch.cuda.device_count()):
+        print(f"Device {i}: Total memory allocated: {torch.cuda.memory_allocated(i)} bytes")
+        print(f"Device {i}: Total memory reserved: {torch.cuda.memory_reserved(i)} bytes")
 
 class nconv(nn.Module):
     def __init__(self):
@@ -269,6 +297,8 @@ class CoSTEncoder(nn.Module):
         # print('season.shape', season.shape)
 
         x = torch.cat((trend, season), dim=1)
+        
+#         print_largest_cuda_tensors()
 
         if self.is_gcn == True and self.is_sampler == False:
             x_ = x
@@ -286,6 +316,7 @@ class CoSTEncoder(nn.Module):
         x_z = x_.std(axis=2)
         x_x, _ = torch.max(x_, axis=2)
         x = torch.cat((x_u, x_z, x_x), axis=1)
+
         # project
         x = self.bn3(x)
         x = self.fc1(x)

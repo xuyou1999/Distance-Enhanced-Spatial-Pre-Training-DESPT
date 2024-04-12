@@ -81,7 +81,7 @@ def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
         elif P.augmentation == 'sampler':
             l = model.contrast(x[0].to(device), x[0].to(device), adj, adj, sensor_idx_start)
         elif P.augmentation == 'temporal_shifting':
-            l = model.contrast(temporal_shifting(x[0], 0.5).to(device),temporal_shifting(x[0], 0.5).to(device), adj, adj, sensor_idx_start)
+            l = model.contrast(temporal_shifting(x[0], 0.8).to(device),temporal_shifting(x[0], 0.8).to(device), adj, adj, sensor_idx_start)
         return l / x[0].shape[0]
 
 def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start):
@@ -233,7 +233,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
         elif P.augmentation == 'sampler':
             loss = model.contrast(x[0].to(device), x[0].to(device), adj_train, adj_train, 0)
         elif P.augmentation == 'temporal_shifting':
-            loss = model.contrast(temporal_shifting(x[0], 0.5).to(device),temporal_shifting(x[0], 0.5).to(device), adj_train, adj_train, 0)
+            loss = model.contrast(temporal_shifting(x[0], 0.8).to(device),temporal_shifting(x[0], 0.8).to(device), adj_train, adj_train, 0)
         loss.backward()
         optimizer.step()
         train_loss = loss / x[0].shape[0]

@@ -527,8 +527,8 @@ def main():
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'HAGUE':
         print('P.dataname == HAGUE')
-        P.data_path = './data/Hauge/hague_filled.h5'
-        P.adj_path = './data/Hauge/adj_mx.pkl'
+        P.data_path = './data/Hauge/hague_comp_filled.h5'
+        P.adj_path = './data/Hauge/adj_mx_comp.pkl'
         P.n_sensor = 144
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'HAGUE_75':

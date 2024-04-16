@@ -21,6 +21,8 @@ def load_adj(pkl_filename, adjtype, dataname):
         adj = [asym_adj(adj_mx)]
     elif adjtype == "doubletransition":
         adj = [asym_adj(adj_mx), asym_adj(adj_mx.T)]
+    elif adjtype == "origin":
+        adj = [adj_mx]
     return adj
 
 def asym_adj(adj):

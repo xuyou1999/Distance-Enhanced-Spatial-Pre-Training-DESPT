@@ -44,7 +44,7 @@ class nconv(nn.Module):
         return x.contiguous()
 
 class gcn(nn.Module):
-    def __init__(self,c_in,c_out,dropout,support_len=3,order=2):
+    def __init__(self,c_in,c_out,dropout,support_len=3,order=1):
         super(gcn,self).__init__()
         self.nconv = nconv()
         c_in = (order*support_len+1)*c_in

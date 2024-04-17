@@ -231,9 +231,44 @@ class gwnet(nn.Module):
         # print('shape of x is:', x.shape)
         return x
     
+
+class nconv(nn.Module):
+    def __init__(self):
+        super(nconv,self).__init__()
+
+    def forward(self,x, A):
+        x = torch.einsum('vl,vw->wl',(x,A)) # (N,C,V,l) x (V,V) -> (N,C,V,l)
+        return x.contiguous()
+
+class gcn(nn.Module):
+    def __init__(self,c_in,c_out,dropout,support_len=3,order=1):
+        super(gcn,self).__init__()
+        self.nconv = nconv()
+        c_in = (order*support_len+1)*c_in
+        self.mlp = nn.Linear(c_in, c_out)
+        self.dropout = dropout
+        self.order = order # hwo many neighbor steps to consider
+
+    def forward(self,x,support):
+        out = [x]
+        for a in support: # a is the adjacency matrix [V,V]
+            x1 = self.nconv(x,a)
+            out.append(x1)
+            for k in range(2, self.order + 1):
+                x2 = self.nconv(x1,a)
+                out.append(x2)
+                x1 = x2
+
+        h = torch.cat(out,dim=1)
+        # print('h.shape', h.shape)
+        h = self.mlp(h)
+        h = F.dropout(h, self.dropout, training=self.training)
+        return h
+    
+
 # LSTM model for univariate time series forecasting using Pytorch
 class LSTM_uni(nn.Module):
-    def __init__(self, input_dim, lstm_input_dim, hidden_dim, output_dim = 12, layer_dim=1, dropout_prob = 0.2, device = 'cpu'):
+    def __init__(self, input_dim, lstm_input_dim, hidden_dim, output_dim = 12, layer_dim=1, dropout_prob = 0.2, device = 'cpu', is_GCN_after_CL = False, support_len = 1):
         super(LSTM_uni, self).__init__()
         self.input_dim = input_dim
         self.lstm_input_dim = lstm_input_dim
@@ -241,6 +276,8 @@ class LSTM_uni(nn.Module):
         self.hidden_dim = hidden_dim # number of hidden units in hidden state
         self.layer_dim = layer_dim # number of stacked lstm layers
         self.device = device
+        self.is_gcn = is_GCN_after_CL
+        self.gcn = gcn(32, 32, 0, support_len, 1)
         # batch_first=True causes input/output tensors to be of shape
         # (batch_dim, seq_dim, feature_dim)
         self.start_conv = nn.Conv2d(in_channels=input_dim,
@@ -249,8 +286,10 @@ class LSTM_uni(nn.Module):
         self.lstm = nn.LSTM(lstm_input_dim, hidden_dim, layer_dim, batch_first=True, dropout=dropout_prob)
         self.fc = nn.Linear(hidden_dim, output_dim) # fully connected layer
 
-    def forward(self, x, e, alpha, is_concat, future=False):
+    def forward(self, x, e, alpha, is_concat, future=False, support = None):
         # Transform x to the shape (batch_dim, seq_dim, feature_dim)
+        if self.is_gcn == True:
+            e = self.gcn(e.T, support).T
         batch_size = x.size(0)
         sensor_size = x.size(2)
         x = self.start_conv(x)

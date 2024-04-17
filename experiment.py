@@ -41,7 +41,7 @@ def save_parameters(param_obj, filename):
     # Save the updated DataFrame back to the CSV, ensuring all columns are included
     df.to_csv(filename, index=False)
 
-def getModel(name, device):
+def getModel(name, device, support_len):
     if name == 'gwnet':
         model = gwnet(device, num_nodes=P.n_sensor, in_dim=P.n_channel, adp_adj=P.gwnet_is_adp_adj, sga=P.gwnet_is_SGA).to(device)
     elif name == 'LSTM':
@@ -51,7 +51,7 @@ def getModel(name, device):
             lstm_input_dim = 64
         else:
             lstm_input_dim = 32
-        model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, device=device).to(device)
+        model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, device=device, is_GCN_after_CL = P.is_GCN_after_CL, support_len = support_len).to(device)
     return model
 
 def getXSYS(data, mode):
@@ -93,7 +93,7 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
             if P.model == 'gwnet':
                 y_pred = model(x.to(device), adj, embed)
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model)
+                y_pred = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj)
             y_pred = y_pred[:,:,sensor_idx_start:,]
             y = y[:,:,sensor_idx_start:,]
             l = criterion(y_pred, y.to(device))
@@ -109,7 +109,7 @@ def predictModel(model, data_iter, adj, embed, device):
             if P.model == 'gwnet':
                 YS_pred_batch = model(x.to(device), adj, embed)
             elif P.model == 'LSTM':
-                YS_pred_batch = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model)
+                YS_pred_batch = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj)
             YS_pred_batch = YS_pred_batch.cpu().numpy()
             YS_pred.append(YS_pred_batch)
         YS_pred = np.vstack(YS_pred)
@@ -208,18 +208,18 @@ def setups(device):
         train_iter, train_model_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a
 
-def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device, spatialSplit_allNod):
+def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, spatialSplit_allNod):
     print('pretrainModel Started ...')
     adj_train = [tensor.to(device) for tensor in adj_train]
-    adj_val_u = [tensor.to(device) for tensor in adj_val_u]
+    adj_val = [tensor.to(device) for tensor in adj_val]
     if P.augmentation == 'sampler':
         is_sampler = True
     else:
         is_sampler = False
     if P.is_cost:
-        model = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device)
+        model = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device)
     else:
-        model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device)
+        model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device)
     min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
     s_time = datetime.now()
@@ -241,7 +241,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val_u, device
             sensor_idx_start = len(spatialSplit_allNod.i_trn)
         else:
             sensor_idx_start = 0
-        val_loss = pre_evaluateModel(model, preval_iter, adj_val_u, sensor_idx_start, device)
+        val_loss = pre_evaluateModel(model, preval_iter, adj_val, sensor_idx_start, device)
         if val_loss < min_val_loss:
             min_val_loss = val_loss
             torch.save(model.state_dict(), P.save_path + '/' + name + '.pt')
@@ -285,7 +285,7 @@ def trainModel(name, mode,
     else:
         is_sampler = False
 
-    model = getModel(name, device_gpu)
+    model = getModel(name, device_gpu, len(adj_train))
     min_val_u_loss = np.inf
     min_val_a_loss = np.inf
     criterion = nn.L1Loss()
@@ -296,9 +296,9 @@ def trainModel(name, mode,
     adj_val_a = [tensor.to(device_encoder) for tensor in adj_val_a]
     if P.is_pretrain:
         if P.is_cost:
-            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device_encoder)
+            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device_encoder)
         else:
-            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_train)).to(device_encoder)
+            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device_encoder)
         encoder.eval()
         with torch.no_grad():
             encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
@@ -330,7 +330,7 @@ def trainModel(name, mode,
             if P.model == 'gwnet':
                 y_pred = model(x.to(device_gpu), adj_train, train_embed)
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device_gpu), train_embed, P.encoder_to_model_ratio, P.is_concat_encoder_model)
+                y_pred = model(x.to(device_gpu), train_embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj_train)
             loss = criterion(y_pred, y.to(device_gpu))
             loss.backward()
             optimizer.step()
@@ -394,12 +394,12 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     
     if P.is_pretrain:
         if P.is_cost:
-            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN, is_sampler, len(adj_tst)).to(device_encoder)
+            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst)).to(device_encoder)
         else:
-            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN, is_sampler, len(adj_tst)).to(device_encoder)
+            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst)).to(device_encoder)
         encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
         encoder.eval()
-    model = getModel(name, device_gpu)
+    model = getModel(name, device_gpu, len(adj_tst))
     model.load_state_dict(torch.load(P.save_path+ '/' + name +mode[-2:]+ '.pt'))
     s_time = datetime.now()
     
@@ -480,7 +480,8 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
 # P.cost_alpha = 0.5
 # P.cl_temperature = 1
 # P.is_pretrain = True
-# P.is_GCN = True
+# P.is_GCN_encoder = True
+# P.is_GCN_after_CL = True
 # P.augmentation = 'sampler'
 # P.temporal_shifting_r = 0.8
 # P.encoder_to_model_ratio = 1
@@ -551,7 +552,7 @@ def main():
     
     if P.is_pretrain:
         if P.train_encoder_on == 'cpu':
-            pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_u, device_cpu, spatialSplit_allNod)
+            pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_cpu, spatialSplit_allNod)
         else:
             pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_gpu, spatialSplit_allNod)
 

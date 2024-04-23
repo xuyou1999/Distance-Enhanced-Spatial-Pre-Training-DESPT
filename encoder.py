@@ -40,20 +40,37 @@ class nconv(nn.Module):
         super(nconv,self).__init__()
 
     def forward(self,x, A):
-        x = torch.einsum('vl,vw->wl',(x,A)) # (N,C,V,l) x (V,V) -> (N,C,V,l)
+        '''
+        Apply matrix A to the input x by a matrix multiplication
+        No parameter to learn at this stage
+        '''
+        x = torch.einsum('vl,vw->wl',(x,A)) # (V,l) x (V,V) -> (V,l)
         return x.contiguous()
 
 class gcn(nn.Module):
+    # Graph Convolutional Network
     def __init__(self,c_in,c_out,dropout,support_len=3,order=1):
+        '''
+        support length: number of adjacency matrix to consider
+        order: number of neighbor steps to consider
+        c_in: number of input channel for each sensor, to the mlp
+        c_out: number of output channel for each sensor, out from the mlp
+        '''
         super(gcn,self).__init__()
         self.nconv = nconv()
         c_in = (order*support_len+1)*c_in
         self.mlp = nn.Linear(c_in, c_out)
         self.dropout = dropout
-        self.order = order # hwo many neighbor steps to consider
+        self.order = order
 
     def forward(self,x,support):
-        out = [x]
+        '''
+        For each adjacency matrix in the support, apply the graph convolution to the input x
+        For each additional order, apply the graph convolution to the previous output
+        All outputs (include original input x) is added input a out list
+        Then concatenate all outputs in the list and apply a mlp
+        '''
+        out = [x] # [[V,l]]
         for a in support: # a is the adjacency matrix [V,V]
             x1 = self.nconv(x,a)
             out.append(x1)
@@ -62,10 +79,9 @@ class gcn(nn.Module):
                 out.append(x2)
                 x1 = x2
 
-        h = torch.cat(out,dim=1)
-        # print('h.shape', h.shape)
+        h = torch.cat(out,dim=1) # [V,(1+order*support_len)*l]
         h = self.mlp(h)
-        h = F.dropout(h, self.dropout, training=self.training)
+        h = F.dropout(h, self.dropout, training=self.training) # dropout applied only during training time
         return h
     
 class Contrastive_FeatureExtractor_conv(nn.Module):
@@ -73,9 +89,9 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         super().__init__()
         self.temperature = temperature
         self.is_gcn = is_gcn
-        self.conv1 = torch.nn.Conv1d( 1, 32, 13, stride=1) # 1 hour --> per timestep
-        self.conv2 = torch.nn.Conv1d(32, 32, 12, stride=12) # 2 hour --> per hour
-        self.conv3 = torch.nn.Conv1d(32, 32, 24, stride=24) # 1 day --> per day
+        self.conv1 = torch.nn.Conv1d( 1, 32, 13, stride=1) 
+        self.conv2 = torch.nn.Conv1d(32, 32, 12, stride=12)
+        self.conv3 = torch.nn.Conv1d(32, 32, 24, stride=24)
         self.fc1 = torch.nn.Linear(32*3, 32)
         self.fc2 = torch.nn.Linear(32, 32)
         self.bn1 = torch.nn.BatchNorm1d(32)
@@ -84,16 +100,17 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         self.bn4 = torch.nn.BatchNorm1d(32)
         self.gcn = gcn(32, 32, 0, support_len, 1)
         self.is_sampler = is_sampler
-    def forward(self, x, support):
+    def forward(self, x, support, is_example):
         # print('x.shape', x.shape)
         x = self.conv1(x[:,None,:])
         # print('x.shape', x.shape)
         x = F.relu(x)
         x = self.bn1(x)
         x = self.conv2(x)
-        x = F.relu(x)
-        x = self.bn2(x)
-        x = self.conv3(x)
+        if is_example == False:
+            x = F.relu(x)
+            x = self.bn2(x)
+            x = self.conv3(x)
         if self.is_gcn == True and self.is_sampler == False:
             x_ = x
         else:
@@ -122,11 +139,11 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         # print(x[0])
         return x
     
-    def contrast(self, x1, x2, support1, support2, sensor_idx_start):
+    def contrast(self, x1, x2, support1, support2, sensor_idx_start, is_example):
         # project
         # print('x.shape', x.shape)
-        x1 = self(x1, support1)
-        x2 = self(x2, support2)
+        x1 = self(x1, support1, is_example)
+        x2 = self(x2, support2, is_example)
         x1 = self.fc2(x1)
         x2 = self.fc2(x2)
         # L2 norm

@@ -693,13 +693,13 @@ def main():
     if P.dataname == 'METRLA':
         print('P.dataname == METRLA')
         P.data_path = './data/METRLA/metr-la.h5'
-        P.adj_path = './data/METRLA/adj_mx_new.pkl'
+        P.adj_path = './data/METRLA/adj_mx.pkl'
         P.n_sensor = 207
         data = pd.read_hdf(P.data_path).values
     if P.dataname == 'METRLA_NEWADJ':
         print('P.dataname == METRLA_NEWADJ')
         P.data_path = './data/METRLA/metr-la.h5'
-        P.adj_path = './data/METRLA/adj_mx.pkl'
+        P.adj_path = './data/METRLA/adj_mx_new.pkl'
         P.n_sensor = 207
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'PEMSBAY':

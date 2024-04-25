@@ -98,6 +98,8 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         self.is_sampler = is_sampler
 
     def forward(self, x, support, is_example):
+        if is_example:
+            print('\nEncoder started')
         x = self.conv1(x[:,None,:])
         x = F.relu(x)
         x = self.bn1(x)
@@ -137,12 +139,10 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         # GCN
         if self.is_gcn == True:
             if is_example:
-                print('\nbefor gcn')
-                print('Second sensor', x[1])
+                print('GCN is enabled')
             x = self.gcn(x, support)
-            if is_example:
-                print('\nafter gcn')
-                print('Second sensor', x[1])
+        if is_example:
+            print('\nEncoder finished')
         return x
     
     def contrast(self, x1, x2, support1, support2, sensor_idx_start, is_example):
@@ -162,7 +162,7 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         x1 = x1[sensor_idx_start:]
         x2 = x2[sensor_idx_start:]
         if is_example:
-            print('\nthe data shape before loss calculation:')
+            print('\nIn performing encoder contrast learning, the data shape before loss calculation:')
             print('x1.shape', x1.shape)
             print('x2.shape', x2.shape)
         # calculate loss

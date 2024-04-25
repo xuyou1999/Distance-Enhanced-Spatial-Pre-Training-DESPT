@@ -11,26 +11,21 @@ import gc
 def print_largest_cuda_tensors(n=10):
     """
     Print details of the largest tensors allocated on CUDA devices.
-    
     Parameters:
-    - n (int): Number of top tensors to display. Defaults to 10.
+        - n (int): Number of top tensors to display. Defaults to 10.
     """
     # Function to get the size of a tensor in bytes
     def tensor_size_in_bytes(tensor):
         return tensor.element_size() * tensor.nelement()
-
     # Collect all tensors that are on CUDA and currently alive
     alive_tensors = [obj for obj in gc.get_objects() if torch.is_tensor(obj) and obj.is_cuda]
-
     # Sort them by their memory footprint
     sorted_tensors = sorted(alive_tensors, key=lambda x: tensor_size_in_bytes(x), reverse=True)
-
     # Print the details of the top tensors
     print("Top CUDA tensors by size (bytes):")
     for tensor in sorted_tensors[:n]:  # Display top n tensors
         print(f"Shape: {tensor.shape}, Size (bytes): {tensor_size_in_bytes(tensor)}, Device: {tensor.device}, Type: {tensor.dtype}")
-
-    # If you want to see the total allocated and reserved memory on all CUDA devices
+    # total allocated and reserved memory on all CUDA devices
     for i in range(torch.cuda.device_count()):
         print(f"Device {i}: Total memory allocated: {torch.cuda.memory_allocated(i)} bytes")
         print(f"Device {i}: Total memory reserved: {torch.cuda.memory_reserved(i)} bytes")
@@ -81,7 +76,8 @@ class gcn(nn.Module):
 
         h = torch.cat(out,dim=1) # [V,(1+order*support_len)*l]
         h = self.mlp(h)
-        h = F.dropout(h, self.dropout, training=self.training) # dropout applied only during training time
+        # dropout applied only during training time
+        h = F.dropout(h, self.dropout, training=self.training) 
         return h
     
 class Contrastive_FeatureExtractor_conv(nn.Module):
@@ -100,10 +96,9 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         self.bn4 = torch.nn.BatchNorm1d(32)
         self.gcn = gcn(32, 32, 0, support_len, 1)
         self.is_sampler = is_sampler
+
     def forward(self, x, support, is_example):
-        # print('x.shape', x.shape)
         x = self.conv1(x[:,None,:])
-        # print('x.shape', x.shape)
         x = F.relu(x)
         x = self.bn1(x)
         x = self.conv2(x)
@@ -111,10 +106,13 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
             x = F.relu(x)
             x = self.bn2(x)
             x = self.conv3(x)
-        if self.is_gcn == True and self.is_sampler == False:
+        '''
+        If the sampler is enabled, the input x is sampled by half of latent features
+        '''
+        if self.is_sampler == False:
             x_ = x
         else:
-        # sample half of samples
+        # sample half of features of each sensor's representation
             n_half = int(x.shape[-1]/2)
             x_ = torch.empty(x.shape[0], x.shape[1], n_half).to(x.device)
             for i in range(x.shape[0]):
@@ -122,43 +120,61 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
                 np.random.shuffle(idx)
                 idx = idx < n_half
                 x_[i, :, :] = x[i, :, idx]
+        if is_example:
+            print('\nthe data shape after convolutional layers and potential sampling')
+            print('x_.shape', x_.shape)
         # aggregate
         x_u = x_.mean(axis=2)
         x_z = x_.std(axis=2)
         x_x, _ = torch.max(x_, axis=2)
         x = torch.cat((x_u, x_z, x_x), axis=1)
-        # project
+
         x = self.bn3(x)
         x = self.fc1(x)
         x = F.relu(x)
         x = self.bn4(x)
-        # print(x[0])
+
+        # GCN
         if self.is_gcn == True:
+            if is_example:
+                print('\nbefor gcn')
+                print('Second sensor', x[1])
             x = self.gcn(x, support)
-        # print('x.shape_out', x.shape)
-        # print(x[0])
+            if is_example:
+                print('\nafter gcn')
+                print('Second sensor', x[1])
         return x
     
     def contrast(self, x1, x2, support1, support2, sensor_idx_start, is_example):
-        # project
-        # print('x.shape', x.shape)
+        '''
+        x1 and x2 are two input samples
+        support1 and support2 are adjacency matrix for each sample
+        An additional projection head is applied to conduct loss calculation
+        '''
         x1 = self(x1, support1, is_example)
         x2 = self(x2, support2, is_example)
+        # Projection
         x1 = self.fc2(x1)
         x2 = self.fc2(x2)
-        # L2 norm
         x1 = F.normalize(x1)
         x2 = F.normalize(x2)
+        # Only evaluate the sensors after sensor_idx_start index
         x1 = x1[sensor_idx_start:]
         x2 = x2[sensor_idx_start:]
-        # print('x1.shape', x1.shape)
+        if is_example:
+            print('\nthe data shape before loss calculation:')
+            print('x1.shape', x1.shape)
+            print('x2.shape', x2.shape)
         # calculate loss
         return nt_xent_loss(x1,x2,self.temperature)
     
 
 def nt_xent_loss(out_1, out_2, temperature):
-    """Loss used in SimCLR."""
-    # https://github.com/PyTorchLightning/lightning-bolts/blob/master/pl_bolts/losses/self_supervised_learning.py
+    """
+    Loss used in SimCLR.
+    InfoNCE loss
+    Ref: https://github.com/PyTorchLightning/lightning-bolts/blob/master/pl_bolts/losses/self_supervised_learning.py
+    """
     out = torch.cat([out_1, out_2], dim=0)
     n_samples = len(out)
 
@@ -202,7 +218,6 @@ class BandedFourierLayer(nn.Module):
         input_fft = fft.rfft(input, dim=1)
         output_fft = torch.zeros(b, t // 2 + 1, self.out_channels, device=input.device, dtype=torch.cfloat)
         output_fft[:, self.start:self.end] = self._forward(input_fft)
-        # print(output_fft.shape, 'output_fft')
         return fft.irfft(output_fft, n=input.size(1), dim=1)
 
     def _forward(self, input):
@@ -262,6 +277,7 @@ class CoSTEncoder(nn.Module):
         self.bn3 = torch.nn.BatchNorm1d(32*3)
         self.bn4 = torch.nn.BatchNorm1d(32)
 
+    #--------------- Currently Not Used ----------------
     def convert_coeff(self, x, eps=1e-6):
         amp = torch.sqrt((x.real + eps).pow(2) + (x.imag + eps).pow(2))
         phase = torch.atan2(x.imag, x.real + eps)
@@ -279,12 +295,12 @@ class CoSTEncoder(nn.Module):
         i = torch.arange(B, device=z1.device)
         loss = (logits[:, i, B + i - 1].mean() + logits[:, B + i, i].mean()) / 2
         return loss
+    #----------------------------------------------------
     
     def forward(self, x, support):  # x: B x T x input_dims
-        # print('x.shape', x.shape)
         x = self.conv1(x[:,None,:]) # B x Ch x T
-        # print('x.shape', x.shape)
 
+        # Trend component
         trend = []
         for idx, mod in enumerate(self.tfd):
             out = mod(x)  # b d t
@@ -296,11 +312,10 @@ class CoSTEncoder(nn.Module):
             rearrange(trend, 'list b t d -> list b t d'),
             'list b t d -> b t d', 'mean'
         ).transpose(1, 2)
-        # print('trend.shape', trend.shape)
 
+        # Seasonal component
         x = x.transpose(1, 2)  # B x T x Co
         org_device = x.device
-
         season = []
         for mod in self.sfd:
             if x.device.type == 'mps':
@@ -309,15 +324,12 @@ class CoSTEncoder(nn.Module):
                 out = mod(x)
             season.append(out)
         season = season[0]
-
         season = self.repr_dropout(season).transpose(1, 2)
-        # print('season.shape', season.shape)
 
+        # Concatenate trend and seasonal components
         x = torch.cat((trend, season), dim=1)
-        
-#         print_largest_cuda_tensors()
 
-        if self.is_gcn == True and self.is_sampler == False:
+        if self.is_sampler == False:
             x_ = x
         else:
         # sample half of samples
@@ -333,8 +345,6 @@ class CoSTEncoder(nn.Module):
         x_z = x_.std(axis=2)
         x_x, _ = torch.max(x_, axis=2)
         x = torch.cat((x_u, x_z, x_x), axis=1)
-
-        # project
         x = self.bn3(x)
         x = self.fc1(x)
         x = F.relu(x)
@@ -344,11 +354,9 @@ class CoSTEncoder(nn.Module):
         return x
 
     def contrast(self, x1, x2, support1, support2, sensor_idx_start):
-        # project
-        # print('x1.shape', x1.shape)
         x1 = self(x1, support1)
         x2 = self(x2, support2)
-        # print('x1.shape', x1.shape)
+        # projection
         x1 = self.fc2(x1)
         x2 = self.fc2(x2)
         # L2 norm
@@ -356,6 +364,5 @@ class CoSTEncoder(nn.Module):
         x2 = F.normalize(x2)
         x1 = x1[sensor_idx_start:]
         x2 = x2[sensor_idx_start:]
-        # print('x1.shape', x1.shape)
         # calculate loss
         return nt_xent_loss(x1,x2,self.temperature)

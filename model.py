@@ -232,18 +232,18 @@ class gwnet(nn.Module):
         return x
     
 
-class nconv(nn.Module):
+class lstm_nconv(nn.Module):
     def __init__(self):
-        super(nconv,self).__init__()
+        super(lstm_nconv,self).__init__()
 
     def forward(self,x, A):
         x = torch.einsum('vl,vw->wl',(x,A)) # (N,C,V,l) x (V,V) -> (N,C,V,l)
         return x.contiguous()
 
-class gcn(nn.Module):
+class lstm_gcn(nn.Module):
     def __init__(self,c_in,c_out,dropout,support_len=3,order=1):
-        super(gcn,self).__init__()
-        self.nconv = nconv()
+        super(lstm_gcn,self).__init__()
+        self.nconv = lstm_nconv()
         c_in = (order*support_len+1)*c_in
         self.mlp = nn.Linear(c_in, c_out)
         self.dropout = dropout
@@ -258,9 +258,7 @@ class gcn(nn.Module):
                 x2 = self.nconv(x1,a)
                 out.append(x2)
                 x1 = x2
-
         h = torch.cat(out,dim=1)
-        # print('h.shape', h.shape)
         h = self.mlp(h)
         h = F.dropout(h, self.dropout, training=self.training)
         return h
@@ -268,7 +266,7 @@ class gcn(nn.Module):
 
 # LSTM model for univariate time series forecasting using Pytorch
 class LSTM_uni(nn.Module):
-    def __init__(self, input_dim, lstm_input_dim, hidden_dim, output_dim = 12, layer_dim=1, dropout_prob = 0.2, device = 'cpu', is_GCN_after_CL = False, support_len = 1):
+    def __init__(self, input_dim, lstm_input_dim, hidden_dim, output_dim = 12, layer_dim=2, dropout_prob = 0.2, device = 'cpu', is_GCN_after_CL = False, support_len = 1):
         super(LSTM_uni, self).__init__()
         self.input_dim = input_dim
         self.lstm_input_dim = lstm_input_dim
@@ -277,7 +275,7 @@ class LSTM_uni(nn.Module):
         self.layer_dim = layer_dim # number of stacked lstm layers
         self.device = device
         self.is_gcn = is_GCN_after_CL
-        self.gcn = gcn(32, 32, 0, support_len, 1)
+        self.gcn = lstm_gcn(32, 32, 0, support_len, 1)
         # batch_first=True causes input/output tensors to be of shape
         # (batch_dim, seq_dim, feature_dim)
         self.start_conv = nn.Conv2d(in_channels=input_dim,
@@ -286,9 +284,11 @@ class LSTM_uni(nn.Module):
         self.lstm = nn.LSTM(lstm_input_dim, hidden_dim, layer_dim, batch_first=True, dropout=dropout_prob)
         self.fc = nn.Linear(hidden_dim, output_dim) # fully connected layer
 
-    def forward(self, x, e, alpha, is_concat, future=False, support = None):
+    def forward(self, x, e, alpha, is_concat, support = None, is_example = False):
         # Transform x to the shape (batch_dim, seq_dim, feature_dim)
         if self.is_gcn == True:
+            if is_example:
+                print('gcn is used')
             e = self.gcn(e.T, support).T
         batch_size = x.size(0)
         sensor_size = x.size(2)
@@ -300,6 +300,8 @@ class LSTM_uni(nn.Module):
         else:
             x = x + new_e
         x = x.permute(0, 2, 3, 1)
+        if is_example:
+            print('\nAfter adding the embeddings, the shape of x is:', x.shape)
         x = x.contiguous().view(-1, 12, self.lstm_input_dim)
         # hidden and cell states are expected along with input x in LSTMs = (h_0, c_0)
         # Initialize hidden state with zeros (layer_dim, batch_size, hidden_dim)

@@ -51,7 +51,7 @@ def getModel(name, device, support_len):
             lstm_input_dim = 64
         else:
             lstm_input_dim = 32
-        model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, device=device, is_GCN_after_CL = P.is_GCN_after_CL, support_len = support_len).to(device)
+        model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, layer_dim = P.lstm_layers, dropout_prob = P.lstm_dropout, device=device, is_GCN_after_CL = P.is_GCN_after_CL, support_len = support_len).to(device)
     return model
 
 def getXSYS(data, mode):
@@ -103,6 +103,7 @@ def setups(device):
         print('\nLast instance trainXS for first sensor:', trainXS[-1,0,0,:])
         print('\nFirst instance testXS for first sensor:', testXS[0,0,0,:])
         print('\nFirst instance trainXS for second sensor:', trainXS[0,0,1,:])
+        print('\nFirst instance trainYS for second sensor:', trainYS[0,:,1,0])
 
     '''
     Split the training set further into training and validation sets.
@@ -190,6 +191,12 @@ def setups(device):
         print('Corresponding Entry (18,1)', adj_train[0][0][1])
         print('Corresponding Entry (7,11)', adj_val_u[0][1][3])
         print('Corresponding Entry (19,10)', adj_train[0][2][4])
+        print('\nadjacency matrix after normalization')
+        print('train adj', adj_train[0])
+        print('val_u adj', adj_val_u[0])
+        print('val_a adj', adj_val_a[0])
+        print('tst_u adj', adj_tst_u[0])
+        print('tst_a adj', adj_tst_a[0])
     
     '''
     PRETRAIN data loader.
@@ -202,7 +209,7 @@ def setups(device):
         XS_torch_train[:,-1,:,0].T), batch_size=1, shuffle=True)
     preval_iter = torch.utils.data.DataLoader(
     torch.utils.data.TensorDataset(
-        torch.tensor(trainXS[:,-1,spatialSplit_allNod.i_val,0]).T.float()),
+        torch.tensor(XS_torch_trn[:,-1,spatialSplit_allNod.i_val,0]).T.float()),
     batch_size=1, shuffle=False)
     print('\npretrn_iter.dataset.tensors[0].shape', pretrn_iter.dataset.tensors[0].shape)
     print('preval_iter.dataset.tensors[0].shape', preval_iter.dataset.tensors[0].shape)
@@ -217,17 +224,24 @@ def setups(device):
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a
 
 def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, spatialSplit_allNod):
-    print('pretrainModel Started ...')
+    print('\npretrainModel Started ...')
     adj_train = [tensor.to(device) for tensor in adj_train]
     adj_val = [tensor.to(device) for tensor in adj_val]
+    if P.example_verbose:
+        print('\nFor veryfication purposes')
+        print('adj_train for second sensor in original order', adj_train[0][1])
+        print('adj_val for second sensor in original order', adj_val[0][1])
+        print('there are ', len(adj_train), 'adjacency matrices in adj_train')
     if P.augmentation == 'sampler':
         is_sampler = True
     else:
         is_sampler = False
+    # Get the encoder model
     if P.is_cost:
         model = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device)
     else:
         model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device)
+    # Start pretraining
     min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
     s_time = datetime.now()
@@ -235,32 +249,54 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
         starttime = datetime.now()
         model.train()
         x = pretrain_iter.dataset.tensors
-        optimizer.zero_grad()
+        if P.example_verbose:
+            print('\nFor pretraining, training dataset:')
+            print('x[0].shape', x[0].shape)
+            print('x[0] for second sensor in original order', x[0][1,:])
+        # Get the loss
         if P.augmentation == 'edge_masking':
             loss = model.contrast(x[0].to(device), x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device), 0, P.example_verbose)
         elif P.augmentation == 'sampler':
             loss = model.contrast(x[0].to(device), x[0].to(device), adj_train, adj_train, 0, P.example_verbose)
         elif P.augmentation == 'temporal_shifting':
-            loss = model.contrast(temporal_shifting(x[0], P.temporal_shifting_r).to(device),temporal_shifting(x[0], P.temporal_shifting_r).to(device), adj_train, adj_train, 0, P.example_verbose)
+            x1 = temporal_shifting(x[0], P.temporal_shifting_r).to(device)
+            x2 = temporal_shifting(x[0], P.temporal_shifting_r).to(device)
+            if P.example_verbose:
+                print('\nthe first augmentated input', x1[1,:])
+                print('the second augmentated input', x2[1,:])
+            loss = model.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
+
+        # Backward and optimize
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        train_loss = loss / x[0].shape[0]
+        train_loss = loss
+
+        # Set the start index for the validation where the loss will be calculated only for the sensors after this index
         if P.is_testunseen:
             sensor_idx_start = len(spatialSplit_allNod.i_trn)
         else:
             sensor_idx_start = 0
+        if P.example_verbose:
+            print('\nThe validation for encoder starts at index', sensor_idx_start)
+
+        # Validation
         val_loss = pre_evaluateModel(model, preval_iter, adj_val, sensor_idx_start, device)
         if val_loss < min_val_loss:
             min_val_loss = val_loss
             torch.save(model.state_dict(), P.save_path + '/' + name + '.pt')
+
+        # Time
         endtime = datetime.now()
         epoch_time = (endtime - starttime).seconds
+
         # save epoch results
         print("epoch", epoch, "time used:", epoch_time," seconds ", "train loss:", train_loss, "validation loss:", val_loss)
         with open(P.save_path + '/' + name + '_log.txt', 'a') as f:
             f.write("%s %d, %s %d %s, %s %.10f, %s %.10f\n" % ("epoch:", epoch, "time used:", epoch_time, "seconds", "train loss:", train_loss, "validation loss:", val_loss))
     e_time = datetime.now()
     print('PRETIME DURATION:', e_time-s_time)
+
     # Write the final results to the log file
     try:
         df = pd.read_csv('save/results.csv')
@@ -278,6 +314,11 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
     print('pretrainModel Ended ...\n')
 
 def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
+    '''
+    Calculate the loss for the validation set
+    Execute the encoder for the full length of the data
+    But only the sensors after sensor_idx_start are used for the loss calculation
+    '''
     model.eval()
     with torch.no_grad():
         x = data_iter.dataset.tensors
@@ -287,14 +328,16 @@ def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
             l = model.contrast(x[0].to(device), x[0].to(device), adj, adj, sensor_idx_start, P.example_verbose)
         elif P.augmentation == 'temporal_shifting':
             l = model.contrast(temporal_shifting(x[0], P.temporal_shifting_r).to(device),temporal_shifting(x[0], P.temporal_shifting_r).to(device), adj, adj, sensor_idx_start, P.example_verbose)
-        return l / x[0].shape[0]
+        return l
 
 def trainModel(name, mode, 
         train_iter, train_model_iter, val_u_iter, val_a_iter,
         adj_train, adj_val_u, adj_val_a,
         spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu):
-    print('trainModel Started ...')
+    print('\ntrainModel Started ...')
     print('TIMESTEP_IN, TIMESTEP_OUT', P.timestep_in, P.timestep_out)
+
+    # Set the device for the encoder
     if P.train_encoder_on == 'cpu':
         device_encoder = device_cpu
     else:
@@ -305,15 +348,26 @@ def trainModel(name, mode,
     else:
         is_sampler = False
 
-    model = getModel(name, device_gpu, len(adj_train))
+    model = getModel(name, device_gpu, len(adj_train)) # Prediction model
+
+    # training settings
     min_val_u_loss = np.inf
     min_val_a_loss = np.inf
     criterion = nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
     s_time = datetime.now()
+
+    # Adjacency Matrix used for encoder
     adj_train = [tensor.to(device_encoder) for tensor in adj_train]
     adj_val_u = [tensor.to(device_encoder) for tensor in adj_val_u]
     adj_val_a = [tensor.to(device_encoder) for tensor in adj_val_a]
+    if P.example_verbose:
+        print('\nFor veryfication purposes')
+        print('The shape of adj_train', adj_train[0].shape)
+        print('The shape of adj_val_u', adj_val_u[0].shape)
+        print('The shape of adj_val_a', adj_val_a[0].shape)
+
+    # Get the enbeddings from the encoder
     if P.is_pretrain:
         if P.is_cost:
             encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device_encoder)
@@ -322,45 +376,80 @@ def trainModel(name, mode,
         encoder.eval()
         with torch.no_grad():
             encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
-            train_embed = encoder(train_iter.dataset.tensors[0][:,-1,:,0].T.to(device_encoder), adj_train, P.example_verbose).T.detach().to(device_gpu)
-            val_u_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device_encoder).float().T, adj_val_u, P.example_verbose).T.detach().to(device_gpu)
-            val_a_embed = encoder(torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device_encoder).float().T, adj_val_a, P.example_verbose).T.detach().to(device_gpu)
+            train_encoder_input = train_iter.dataset.tensors[0][:,-1,:,0].T.to(device_encoder)
+            val_u_encoder_input = torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device_encoder).float().T
+            val_a_encoder_input = torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device_encoder).float().T
+            if P.example_verbose:
+                print('\nThe shape of train_encoder_input', train_encoder_input.shape)
+                print('The shape of val_u_encoder_input', val_u_encoder_input.shape)
+                print('The shape of val_a_encoder_input', val_a_encoder_input.shape)
+            train_embed = encoder(train_encoder_input, adj_train, P.example_verbose).T.detach().to(device_gpu)
+            val_u_embed = encoder(val_u_encoder_input, adj_val_u, P.example_verbose).T.detach().to(device_gpu)
+            val_a_embed = encoder(val_a_encoder_input, adj_val_a, P.example_verbose).T.detach().to(device_gpu)
     else:
         train_embed = torch.zeros(32, train_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
         val_u_embed = torch.zeros(32, val_u_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
         val_a_embed = torch.zeros(32, val_a_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
+
     adj_train = [tensor.to(device_gpu) for tensor in adj_train]
     adj_val_u = [tensor.to(device_gpu) for tensor in adj_val_u]
     adj_val_a = [tensor.to(device_gpu) for tensor in adj_val_a]
     m_time = datetime.now()
-    print('ENCODER INFER DURATION IN MODEL TRAINING:', m_time-s_time)
+
+    print('\nENCODER INFER DURATION IN MODEL TRAINING:', m_time-s_time)
     print('train_embed', train_embed.shape, train_embed.mean(), train_embed.std())
     print('val_u_embed', val_u_embed.shape, val_u_embed.mean(), val_u_embed.std())
     print('val_a_embed', val_a_embed.shape, val_a_embed.mean(), val_a_embed.std())
+
+    '''
+    Decide which dataset to use for training the model
+    A: the same dataset used for training the encoder
+    B: the same sensors as A, but different timestamps: validation split in temporal dimension
+    '''
     if P.train_model_datasplit == 'A':
         model_input = train_iter
     elif P.train_model_datasplit == 'B':
         model_input = train_model_iter
+    if P.example_verbose:
+        print('\nFor verification purposes')
+        print('The shape of model_input', model_input.dataset.tensors[0].shape)
+    
     for epoch in range(P.train_epoch):
         starttime = datetime.now()     
         loss_sum, n = 0.0, 0
         model.train()
         for x, y in model_input:
-            optimizer.zero_grad()
+            # Apply prediction
             if P.model == 'gwnet':
                 y_pred = model(x.to(device_gpu), adj_train, train_embed)
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device_gpu), train_embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj_train)
+                y_pred = model(x.to(device_gpu), train_embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj_train, is_example = P.example_verbose)
+            '''
+            The output of y_pred and y should have the same shape
+            The shape of y_pred should be [batch_size, timestep_out, number_of_sensors, number_of_channels]
+            '''
+            if P.example_verbose:
+                print('\nFor veryfication purposes')
+                print('The shape of y_pred', y_pred.shape)
+                print('The shape of y', y.shape)
+                print('The corresponding second instance of y_pred', y_pred[0,:,1,0])
+                print('The corresponding second instance of y', y[0,:,1,0])
+            # Calculate the loss: L1 loss
             loss = criterion(y_pred, y.to(device_gpu))
+
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             loss_sum += loss.item() * y.shape[0]
             n += y.shape[0]
-        train_loss = loss_sum / n
+        train_loss = loss_sum / n # Final average loss for the epoch
         if P.is_testunseen:
             sensor_idx_start = len(spatialSplit_allNod.i_trn)
         else:
             sensor_idx_start = 0
+        if P.example_verbose:
+            print('\nThe validation for model training starts at index', sensor_idx_start)
+        # Calculate the loss for the validation set, and save the optimal model
         val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed, device_gpu, 0)
         val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, device_gpu, sensor_idx_start)
         if val_u_loss < min_val_u_loss:
@@ -408,9 +497,13 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
             if P.model == 'gwnet':
                 y_pred = model(x.to(device), adj, embed)
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj)
+                y_pred = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose)
             y_pred = y_pred[:,:,sensor_idx_start:,]
             y = y[:,:,sensor_idx_start:,]
+            if P.example_verbose:
+                print('\nIn model evaluation process:')
+                print('The shape of y_pred', y_pred.shape)
+                print('The shape of y', y.shape)
             l = criterion(y_pred, y.to(device))
             l_sum += l.item() * y.shape[0]
             n += y.shape[0]
@@ -440,19 +533,31 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     model.load_state_dict(torch.load(P.save_path+ '/' + name +mode[-2:]+ '.pt'))
     s_time = datetime.now()
     
+    '''
+    Encoder inference
+    '''
     print('Model Infer Start ...')
     tst_embed = torch.zeros(32, test_iter.dataset.tensors[0].shape[2]).to(device_gpu).detach()
     adj_tst = [tensor.to(device_encoder) for tensor in adj_tst]
     if P.is_pretrain:
         with torch.no_grad():
-            tst_embed = encoder(torch.Tensor(data[:P.trainval_size,spatialsplit.i_tst]).to(device_encoder).float().T, adj_tst, P.example_verbose).T.detach().to(device_gpu)
+            tst_encoder_input = torch.Tensor(data[:P.train_size,spatialsplit.i_tst]).to(device_encoder).float().T
+            if P.example_verbose:
+                print('\nThe shape of tst_encoder_input', tst_encoder_input.shape)
+            tst_embed = encoder(tst_encoder_input, adj_tst, P.example_verbose).T.detach().to(device_gpu)
     adj_tst = [tensor.to(device_gpu) for tensor in adj_tst]
+    
     m_time = datetime.now()
     print('ENCODER INFER DURATION:', m_time-s_time)
+
     if P.is_testunseen:
         sensor_idx_start = len(spatialsplit.i_val)
     else:
         sensor_idx_start = 0
+    if P.example_verbose:
+        print('\nThe inference for model starts at index', sensor_idx_start)
+
+    print('\nMODEL INFER START ...')
     torch_score = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, device_gpu, sensor_idx_start)
     e_time = datetime.now()
     print('Model Infer End ...', e_time)
@@ -523,6 +628,8 @@ P.n_channel = 1
 P.batch_size = 64
 
 P.lstm_hidden_dim = 128
+P.lstm_layers = 2
+P.lstm_dropout = 0.2
 P.gwnet_is_adp_adj = True
 P.gwnet_is_SGA = False
 
@@ -548,15 +655,22 @@ P.train_model_datasplit = 'B'
 P.train_encoder_on = 'cpu'
 
 P.example_verbose = True
-
-Not possible: gcn false and sampler false
 '''
 
 def main():
-    if P.is_pretrain == False:
-        P.is_concat_encoder_model = False
     global data
     global scaler
+
+    '''
+    Check the parameter settings.
+    '''
+    if P.is_pretrain == False and P.is_concat_encoder_model == True:
+        raise ValueError('Pretraining should be enabled for concatenation')
+    if P.augmentation == 'edge_masking' and P.is_GCN_encoder == False:
+        raise ValueError('edge_masking augmentation requires GCN encoder')
+    if P.is_GCN_encoder == True and P.is_GCN_after_CL == True:
+        raise ValueError('GCN should be used only in one place')
+    
 
     '''
     Set backend devices. 
@@ -578,11 +692,29 @@ def main():
         P.adj_path = './data/METRLA/adj_mx_new.pkl'
         P.n_sensor = 207
         data = pd.read_hdf(P.data_path).values
+    if P.dataname == 'METRLA_NEWADJ':
+        print('P.dataname == METRLA_NEWADJ')
+        P.data_path = './data/METRLA/metr-la.h5'
+        P.adj_path = './data/METRLA/adj_mx.pkl'
+        P.n_sensor = 207
+        data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'PEMSBAY':
         print('P.dataname == PEMSBAY')
         P.data_path = './data/PEMSBAY/pems-bay.h5'
+        P.adj_path = './data/PEMSBAY/adj_mx.pkl'
+        P.n_sensor = 325
+        data = pd.read_hdf(P.data_path).values
+    elif P.dataname == 'PEMSBAY_NEWADJ':
+        print('P.dataname == PEMSBAY_NEWADJ')
+        P.data_path = './data/PEMSBAY/pems-bay.h5'
         P.adj_path = './data/PEMSBAY/adj_mx_new.pkl'
         P.n_sensor = 325
+        data = pd.read_hdf(P.data_path).values
+    elif P.dataname == 'HAGUE_FULL':
+        print('P.dataname == HAGUE_FULL')
+        P.data_path = './data/Hauge/hague.h5'
+        P.adj_path = './data/Hauge/adj_mx.pkl'
+        P.n_sensor = 144
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'HAGUE':
         print('P.dataname == HAGUE')
@@ -590,8 +722,8 @@ def main():
         P.adj_path = './data/Hauge/adj_mx_comp.pkl'
         P.n_sensor = 144
         data = pd.read_hdf(P.data_path).values
-    elif P.dataname == 'HAGUE_75':
-        print('P.dataname == HAGUE_75')
+    elif P.dataname == 'HAGUE_FULL_75':
+        print('P.dataname == HAGUE_FULL_75')
         P.data_path = './data/Hauge/hague_filled_75.h5'
         P.adj_path = './data/Hauge/adj_mx.pkl'
         P.n_sensor = 144

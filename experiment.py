@@ -558,6 +558,10 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
         print('\nThe inference for model starts at index', sensor_idx_start)
 
     print('\nMODEL INFER START ...')
+    '''
+    Prediction is on all sensors
+    But the loss is calculated only for the sensors after sensor_idx_start
+    '''
     torch_score = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, device_gpu, sensor_idx_start)
     e_time = datetime.now()
     print('Model Infer End ...', e_time)

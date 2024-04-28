@@ -638,6 +638,7 @@ P.gwnet_is_adp_adj = True
 P.gwnet_is_SGA = False
 
 P.adj_type = 'doubletransition'
+P.adj_method = 1
 P.is_cost = True
 P.cost_kernals = [1, 2, 4, 8, 16, 32, 64, 128]
 P.cost_alpha = 0.5
@@ -693,49 +694,47 @@ def main():
     if P.dataname == 'METRLA':
         print('P.dataname == METRLA')
         P.data_path = './data/METRLA/metr-la.h5'
-        P.adj_path = './data/METRLA/adj_mx.pkl'
-        P.n_sensor = 207
-        data = pd.read_hdf(P.data_path).values
-    if P.dataname == 'METRLA_NEWADJ':
-        print('P.dataname == METRLA_NEWADJ')
-        P.data_path = './data/METRLA/metr-la.h5'
-        P.adj_path = './data/METRLA/adj_mx_new.pkl'
+        if P.adj_method == 0:
+            P.adj_path = './data/METRLA/adj_mx.pkl'
+        elif P.adj_method == 1:
+            P.adj_path = './data/METRLA/adj_mx_new1.pkl'
         P.n_sensor = 207
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'PEMSBAY':
         print('P.dataname == PEMSBAY')
         P.data_path = './data/PEMSBAY/pems-bay.h5'
-        P.adj_path = './data/PEMSBAY/adj_mx.pkl'
-        P.n_sensor = 325
-        data = pd.read_hdf(P.data_path).values
-    elif P.dataname == 'PEMSBAY_NEWADJ':
-        print('P.dataname == PEMSBAY_NEWADJ')
-        P.data_path = './data/PEMSBAY/pems-bay.h5'
-        P.adj_path = './data/PEMSBAY/adj_mx_new.pkl'
+        if P.adj_method == 0:
+            P.adj_path = './data/PEMSBAY/adj_mx.pkl'
+        elif P.adj_method == 1:
+            P.adj_path = './data/PEMSBAY/adj_mx_new1.pkl'
         P.n_sensor = 325
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'HAGUE_FULL':
         print('P.dataname == HAGUE_FULL')
-        P.data_path = './data/Hauge/hague.h5'
-        P.adj_path = './data/Hauge/adj_mx.pkl'
+        P.data_path = './data/Hauge/hague_filled.h5'
+        if P.adj_method == 1:
+            P.adj_path = './data/Hauge/adj_mx1.pkl'
         P.n_sensor = 144
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'HAGUE':
         print('P.dataname == HAGUE')
         P.data_path = './data/Hauge/hague_comp_filled.h5'
-        P.adj_path = './data/Hauge/adj_mx_comp.pkl'
+        if P.adj_method == 1:
+            P.adj_path = './data/Hauge/adj_mx_comp1.pkl'
         P.n_sensor = 144
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'HAGUE_FULL_75':
         print('P.dataname == HAGUE_FULL_75')
         P.data_path = './data/Hauge/hague_filled_75.h5'
-        P.adj_path = './data/Hauge/adj_mx.pkl'
+        if P.adj_method == 1:
+            P.adj_path = './data/Hauge/adj_mx1.pkl'
         P.n_sensor = 144
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'EXAMPLE':
         print('P.dataname == EXAMPLE')
         P.data_path = './data/example.h5'
-        P.adj_path = './data/adj_mx_ex.pkl'
+        if P.adj_method == 1:
+            P.adj_path = './data/adj_mx_ex1.pkl'
         P.n_sensor = 20
         data = pd.read_hdf(P.data_path).values
         if P.example_verbose:

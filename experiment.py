@@ -51,7 +51,7 @@ def getModel(name, device, support_len):
             lstm_input_dim = 64
         else:
             lstm_input_dim = 32
-        model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, layer_dim = P.lstm_layers, dropout_prob = P.lstm_dropout, device=device, is_GCN_after_CL = P.is_GCN_after_CL, support_len = support_len).to(device)
+        model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, layer_dim = P.lstm_layers, dropout_prob = P.lstm_dropout, device=device, is_GCN_after_CL = P.is_GCN_after_CL, support_len = support_len, gcn_order=P.gcn_order, gcn_dropout=P.gcn_dropout).to(device)
     return model
 
 def getXSYS(data, mode):
@@ -240,7 +240,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
     if P.is_cost:
         model = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device)
     else:
-        model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device)
+        model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device)
     # Start pretraining
     min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
@@ -372,7 +372,7 @@ def trainModel(name, mode,
         if P.is_cost:
             encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device_encoder)
         else:
-            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device_encoder)
+            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device_encoder)
         encoder.eval()
         with torch.no_grad():
             encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
@@ -526,7 +526,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
         if P.is_cost:
             encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst)).to(device_encoder)
         else:
-            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst)).to(device_encoder)
+            encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst), P.gcn_order, P.gcn_dropout).to(device_encoder)
         encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
         encoder.eval()
     model = getModel(name, device_gpu, len(adj_tst))
@@ -646,6 +646,8 @@ P.cl_temperature = 1
 P.is_pretrain = True
 P.is_GCN_encoder = True
 P.is_GCN_after_CL = True
+P.gcn_order = 1
+P.gcn_dropout = 0
 P.augmentation = 'sampler'
 P.temporal_shifting_r = 0.8
 P.encoder_to_model_ratio = 1

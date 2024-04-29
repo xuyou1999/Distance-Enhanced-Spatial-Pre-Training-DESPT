@@ -28,7 +28,7 @@ class gwnet_linear(nn.Module):
         return self.mlp(x)
 
 class gwnet_gcn(nn.Module):
-    def __init__(self,c_in,c_out,dropout,support_len=3,order=2):
+    def __init__(self,c_in,c_out,dropout,support_len=3,order=1):
         super(gwnet_gcn,self).__init__()
         self.nconv = gwnet_nconv()
         c_in = (order*support_len+1)*c_in
@@ -266,7 +266,7 @@ class lstm_gcn(nn.Module):
 
 # LSTM model for univariate time series forecasting using Pytorch
 class LSTM_uni(nn.Module):
-    def __init__(self, input_dim, lstm_input_dim, hidden_dim, output_dim = 12, layer_dim=2, dropout_prob = 0.2, device = 'cpu', is_GCN_after_CL = False, support_len = 1):
+    def __init__(self, input_dim, lstm_input_dim, hidden_dim, output_dim = 12, layer_dim=2, dropout_prob = 0.2, device = 'cpu', is_GCN_after_CL = False, support_len = 1, gcn_order = 1, gcn_dropout = 0):
         super(LSTM_uni, self).__init__()
         self.input_dim = input_dim
         self.lstm_input_dim = lstm_input_dim
@@ -275,7 +275,7 @@ class LSTM_uni(nn.Module):
         self.layer_dim = layer_dim # number of stacked lstm layers
         self.device = device
         self.is_gcn = is_GCN_after_CL
-        self.gcn = lstm_gcn(32, 32, 0, support_len, 1)
+        self.gcn = lstm_gcn(32, 32, gcn_dropout, support_len, gcn_order)
         # batch_first=True causes input/output tensors to be of shape
         # (batch_dim, seq_dim, feature_dim)
         self.start_conv = nn.Conv2d(in_channels=input_dim,

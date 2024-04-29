@@ -81,7 +81,7 @@ class gcn(nn.Module):
         return h
     
 class Contrastive_FeatureExtractor_conv(nn.Module):
-    def __init__(self, temperature=1, is_gcn=True, is_sampler=False, support_len=1):
+    def __init__(self, temperature, is_gcn, is_sampler, support_len, gcn_order, gcn_dropout):
         super().__init__()
         self.temperature = temperature
         self.is_gcn = is_gcn
@@ -94,7 +94,7 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         self.bn2 = torch.nn.BatchNorm1d(32)
         self.bn3 = torch.nn.BatchNorm1d(32*3)
         self.bn4 = torch.nn.BatchNorm1d(32)
-        self.gcn = gcn(32, 32, 0, support_len, 1)
+        self.gcn = gcn(32, 32, gcn_dropout, support_len, gcn_order)
         self.is_sampler = is_sampler
 
     def forward(self, x, support, is_example):

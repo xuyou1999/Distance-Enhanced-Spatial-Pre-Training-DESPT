@@ -238,7 +238,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
         is_sampler = False
     # Get the encoder model
     if P.is_cost:
-        model = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device)
+        model = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device)
     else:
         model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device)
     # Start pretraining
@@ -370,7 +370,7 @@ def trainModel(name, mode,
     # Get the enbeddings from the encoder
     if P.is_pretrain:
         if P.is_cost:
-            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train)).to(device_encoder)
+            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device_encoder)
         else:
             encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device_encoder)
         encoder.eval()
@@ -524,7 +524,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     
     if P.is_pretrain:
         if P.is_cost:
-            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst)).to(device_encoder)
+            encoder = CoSTEncoder(1, 32, P.cost_kernals, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst), P.gcn_order, P.gcn_dropout).to(device_encoder)
         else:
             encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst), P.gcn_order, P.gcn_dropout).to(device_encoder)
         encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))

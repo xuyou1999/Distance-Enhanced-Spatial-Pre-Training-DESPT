@@ -244,13 +244,8 @@ class BandedFourierLayer(nn.Module):
         nn.init.uniform_(self.bias, -bound, bound)
 
 class CoSTEncoder(nn.Module):
-    def __init__(self, input_dims, output_dims,
-                 kernels: List[int] = [1, 2, 4, 8, 16, 32, 64, 128],
-                 alpha: float = 0.5,
-                 temperature: float = 1,
-                 is_gcn=True, is_sampler=False, support_len=1
-                #  length: int,
-                #  hidden_dims=64, depth=10,
+    def __init__(self, input_dims, output_dims, kernels,alpha, temperature,
+                 is_gcn, is_sampler, support_len, gcn_order, gcn_dropout
                  ):
         super().__init__()
         self.is_gcn = is_gcn
@@ -262,7 +257,7 @@ class CoSTEncoder(nn.Module):
         self.component_dims = component_dims
         self.alpha = alpha
         self.temperature = temperature
-        self.gcn = gcn(32, 32, 0, support_len, 1)
+        self.gcn = gcn(32, 32, gcn_dropout, support_len, gcn_order)
         self.repr_dropout = nn.Dropout(p=0.1)
         self.kernels = kernels
         self.tfd = nn.ModuleList(
@@ -276,28 +271,8 @@ class CoSTEncoder(nn.Module):
         self.fc2 = torch.nn.Linear(32, 32)
         self.bn3 = torch.nn.BatchNorm1d(32*3)
         self.bn4 = torch.nn.BatchNorm1d(32)
-
-    #--------------- Currently Not Used ----------------
-    def convert_coeff(self, x, eps=1e-6):
-        amp = torch.sqrt((x.real + eps).pow(2) + (x.imag + eps).pow(2))
-        phase = torch.atan2(x.imag, x.real + eps)
-        return amp, phase
     
-    def instance_contrastive_loss(self, z1, z2):
-        B, T = z1.size(0), z1.size(1)
-        z = torch.cat([z1, z2], dim=0)  # 2B x T x C
-        z = z.transpose(0, 1)  # T x 2B x C
-        sim = torch.matmul(z, z.transpose(1, 2))  # T x 2B x 2B
-        logits = torch.tril(sim, diagonal=-1)[:, :, :-1]  # T x 2B x (2B-1)
-        logits += torch.triu(sim, diagonal=1)[:, :, 1:]
-        logits = -F.log_softmax(logits, dim=-1)
-
-        i = torch.arange(B, device=z1.device)
-        loss = (logits[:, i, B + i - 1].mean() + logits[:, B + i, i].mean()) / 2
-        return loss
-    #----------------------------------------------------
-    
-    def forward(self, x, support):  # x: B x T x input_dims
+    def forward(self, x, support, is_example):  # x: B x T x input_dims
         x = self.conv1(x[:,None,:]) # B x Ch x T
 
         # Trend component
@@ -353,9 +328,9 @@ class CoSTEncoder(nn.Module):
             x = self.gcn(x, support)
         return x
 
-    def contrast(self, x1, x2, support1, support2, sensor_idx_start):
-        x1 = self(x1, support1)
-        x2 = self(x2, support2)
+    def contrast(self, x1, x2, support1, support2, sensor_idx_start, is_example):
+        x1 = self(x1, support1, is_example)
+        x2 = self(x2, support2, is_example)
         # projection
         x1 = self.fc2(x1)
         x2 = self.fc2(x2)

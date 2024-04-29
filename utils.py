@@ -14,17 +14,29 @@ def load_pickle(pickle_file):
         raise
     return pickle_data
 
-def load_adj(pkl_filename, adjtype, dataname):
+def load_adj(pkl_filename, adjtype, dataname, diag):
     sensor_ids, sensor_id_to_ind, adj_mx = load_pickle(pkl_filename)
     
     if adjtype == "transition":
-        adj = [asym_adj(adj_mx)]
+        adj1 = asym_adj(adj_mx)
+        np.fill_diagonal(adj1, diag)
+        adj = [adj1]
     elif adjtype == "doubletransition":
-        adj = [asym_adj(adj_mx), asym_adj(adj_mx.T)]
+        adj1 = asym_adj(adj_mx)
+        adj2 = asym_adj(adj_mx.T)
+        np.fill_diagonal(adj1, diag)
+        np.fill_diagonal(adj2, diag)
+        adj = [adj1, adj2]
     elif adjtype == "original":
-        adj = [adj_mx]
+        adj1 = adj_mx
+        np.fill_diagonal(adj1, diag)
+        adj = [adj1]
     elif adjtype == "doubleoriginal":
-        adj = [adj_mx, adj_mx.T]
+        adj1 = adj_mx
+        adj2 = adj_mx.T
+        np.fill_diagonal(adj1, diag)
+        np.fill_diagonal(adj2, diag)
+        adj = [adj1, adj2]
     return adj
 
 def asym_adj(adj):

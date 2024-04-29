@@ -167,9 +167,10 @@ def setups(device):
     tst_a_iter = torch.utils.data.DataLoader(tst_a_data, P.batch_size, shuffle=False)
 
     # Load the adjacency matrix
-    adj_mx = load_adj(P.adj_path, P.adj_type, P.dataname)
+    adj_mx = load_adj(P.adj_path, P.adj_type, P.dataname, P.adj_diag)
     if P.example_verbose:
-        print('\nadjacency matrix after normalization')
+        print('\nadjacency matrix after (or not) normalization')
+        print('frist row of the first adjacency matrix', adj_mx[0][0])
         print('Entry (18,1):', adj_mx[0][18][1])
         print('Entry (7,11):', adj_mx[0][7][11])
         print('Entry (19,10):', adj_mx[0][19][10])
@@ -639,6 +640,7 @@ P.gwnet_is_SGA = False
 
 P.adj_type = 'doubletransition'
 P.adj_method = 1
+P.adj_diag = 0
 P.is_cost = True
 P.cost_kernals = [1, 2, 4, 8, 16, 32, 64, 128]
 P.cost_alpha = 0.5

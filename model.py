@@ -266,7 +266,7 @@ class lstm_gcn(nn.Module):
 
 # LSTM model for univariate time series forecasting using Pytorch
 class LSTM_uni(nn.Module):
-    def __init__(self, input_dim, lstm_input_dim, hidden_dim, output_dim = 12, layer_dim=2, dropout_prob = 0.2, device = 'cpu', is_GCN_after_CL = False, support_len = 1, gcn_order = 1, gcn_dropout = 0):
+    def __init__(self, input_dim, lstm_input_dim, hidden_dim, output_dim, layer_dim, dropout_prob, device, is_GCN_after_CL, support_len, gcn_order, gcn_dropout):
         super(LSTM_uni, self).__init__()
         self.input_dim = input_dim
         self.lstm_input_dim = lstm_input_dim
@@ -281,10 +281,13 @@ class LSTM_uni(nn.Module):
         self.start_conv = nn.Conv2d(in_channels=input_dim,
                                     out_channels=32,
                                     kernel_size=(1,1))
+        self.second_conv = nn.Conv2d(in_channels=64,
+                                    out_channels=32,
+                                    kernel_size=(1,1))
         self.lstm = nn.LSTM(lstm_input_dim, hidden_dim, layer_dim, batch_first=True, dropout=dropout_prob)
         self.fc = nn.Linear(hidden_dim, output_dim) # fully connected layer
 
-    def forward(self, x, e, alpha, is_concat, support = None, is_example = False):
+    def forward(self, x, e, alpha, is_concat, support, is_example, is_layer_after_concat):
         # Transform x to the shape (batch_dim, seq_dim, feature_dim)
         if self.is_gcn == True:
             if is_example:
@@ -297,6 +300,8 @@ class LSTM_uni(nn.Module):
         new_e = alpha * e
         if is_concat:
             x = torch.cat((x, e), dim=1)
+            if is_layer_after_concat:
+                x = self.second_conv(x)
         else:
             x = x + new_e
         x = x.permute(0, 2, 3, 1)

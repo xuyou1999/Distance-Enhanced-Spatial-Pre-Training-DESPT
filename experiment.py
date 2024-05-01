@@ -47,11 +47,13 @@ def getModel(name, device, support_len):
     elif name == 'LSTM':
         if P.is_pretrain == False:
             lstm_input_dim = 32
+        elif P.is_layer_after_concat:
+            lstm_input_dim = 32
         elif P.is_concat_encoder_model:
             lstm_input_dim = 64
         else:
             lstm_input_dim = 32
-        model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, layer_dim = P.lstm_layers, dropout_prob = P.lstm_dropout, device=device, is_GCN_after_CL = P.is_GCN_after_CL, support_len = support_len, gcn_order=P.gcn_order, gcn_dropout=P.gcn_dropout).to(device)
+        model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, output_dim=12, layer_dim = P.lstm_layers, dropout_prob = P.lstm_dropout, device=device, is_GCN_after_CL = P.is_GCN_after_CL, support_len = support_len, gcn_order=P.gcn_order, gcn_dropout=P.gcn_dropout).to(device)
     return model
 
 def getXSYS(data, mode):
@@ -424,7 +426,7 @@ def trainModel(name, mode,
             if P.model == 'gwnet':
                 y_pred = model(x.to(device_gpu), adj_train, train_embed)
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device_gpu), train_embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj_train, is_example = P.example_verbose)
+                y_pred = model(x.to(device_gpu), train_embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj_train, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat)
             '''
             The output of y_pred and y should have the same shape
             The shape of y_pred should be [batch_size, timestep_out, number_of_sensors, number_of_channels]
@@ -498,7 +500,7 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
             if P.model == 'gwnet':
                 y_pred = model(x.to(device), adj, embed)
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose)
+                y_pred = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat)
             y_pred = y_pred[:,:,sensor_idx_start:,]
             y = y[:,:,sensor_idx_start:,]
             if P.example_verbose:
@@ -609,7 +611,7 @@ def predictModel(model, data_iter, adj, embed, device):
             if P.model == 'gwnet':
                 YS_pred_batch = model(x.to(device), adj, embed)
             elif P.model == 'LSTM':
-                YS_pred_batch = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj)
+                YS_pred_batch = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat)
             YS_pred_batch = YS_pred_batch.cpu().numpy()
             YS_pred.append(YS_pred_batch)
         YS_pred = np.vstack(YS_pred)
@@ -654,6 +656,7 @@ P.augmentation = 'sampler'
 P.temporal_shifting_r = 0.8
 P.encoder_to_model_ratio = 1
 P.is_concat_encoder_model = True
+P.is_layer_after_concat = True
 
 P.learn_rate = 0.001
 P.pretrain_epoch = 2
@@ -679,6 +682,8 @@ def main():
         raise ValueError('edge_masking augmentation requires GCN encoder')
     if P.is_GCN_encoder == True and P.is_GCN_after_CL == True:
         raise ValueError('GCN should be used only in one place')
+    if P.is_layer_after_concat == True and P.is_concat_encoder_model == False:
+        raise ValueError('Layer after concatenation requires concatenation')
     
 
     '''

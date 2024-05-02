@@ -37,6 +37,10 @@ def load_adj(pkl_filename, adjtype, dataname, diag):
         np.fill_diagonal(adj1, diag)
         np.fill_diagonal(adj2, diag)
         adj = [adj1, adj2]
+    elif adjtype == "identity":
+        adj1 = np.eye(len(sensor_ids))
+        np.fill_diagonal(adj1, diag)
+        adj = [adj1]
     return adj
 
 def asym_adj(adj):

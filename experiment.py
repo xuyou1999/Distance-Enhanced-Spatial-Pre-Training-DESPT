@@ -468,6 +468,8 @@ def trainModel(name, mode,
             loss_sum += loss.item() * y.shape[0]
             n += y.shape[0]
         train_loss = loss_sum / n # Final average loss for the epoch
+        train_end_time = datetime.now()
+        print('TRAINING DURATION FOR EPOCH:', train_end_time-starttime)
         if P.is_testunseen:
             sensor_idx_start = len(spatialSplit_allNod.i_trn)
         else:
@@ -475,11 +477,11 @@ def trainModel(name, mode,
         if P.example_verbose:
             print('\nThe validation for model training starts at index', sensor_idx_start)
         # Calculate the loss for the validation set, and save the optimal model
-        val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed, device_gpu, 0)
+        # val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed, device_gpu, 0)
         val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, device_gpu, sensor_idx_start)
-        if val_u_loss < min_val_u_loss:
-            min_val_u_loss = val_u_loss
-            torch.save(model.state_dict(), P.save_path + '/' + name + '_u.pt')
+        # if val_u_loss < min_val_u_loss:
+        #     min_val_u_loss = val_u_loss
+        #     torch.save(model.state_dict(), P.save_path + '/' + name + '_u.pt')
         if val_a_loss < min_val_a_loss:
             min_val_a_loss = val_a_loss
             torch.save(model.state_dict(), P.save_path + '/' + name + '_a.pt')
@@ -488,14 +490,16 @@ def trainModel(name, mode,
         print("epoch", epoch,
             "time used:",epoch_time," seconds ",
             "train loss:", train_loss,
-            "validation unseen nodes loss:", val_u_loss,
+            # "validation unseen nodes loss:", val_u_loss,
+            "validation unseen nodes loss:", 0,
             "validation all nodes loss:", val_a_loss)
         with open(P.save_path + '/' + name + '_log.txt', 'a') as f:
             f.write("%s %d, %s %d %s, %s %.10f, %s %.10f, %s %.10f\n" % \
                 ("epoch", epoch,
                  "time used:",epoch_time," seconds ",
                  "train loss:", train_loss,
-                 "validation unseen nodes loss:", val_u_loss,
+                #  "validation unseen nodes loss:", val_u_loss,
+                "validation unseen nodes loss:", 0,
                  "validation all nodes loss:", val_a_loss))
     e_time = datetime.now()
     print('MODEL TRAINING DURATION:', e_time-m_time)
@@ -517,13 +521,15 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
     model.eval()
     torch.cuda.empty_cache()
     l_sum, n = 0.0, 0
+    embed_after_index = embed[:,sensor_idx_start:]
     with torch.no_grad():
         for x, y in data_iter:
             if P.model == 'gwnet':
                 y_pred = model(x.to(device), adj, embed)
+                y_pred = y_pred[:,:,sensor_idx_start:,]
             elif P.model == 'LSTM':
-                y_pred = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat)
-            y_pred = y_pred[:,:,sensor_idx_start:,]
+                x = x[:,:,sensor_idx_start:,].to(device)
+                y_pred = model(x, embed_after_index, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat)
             y = y[:,:,sensor_idx_start:,]
             if P.example_verbose:
                 print('\nIn model evaluation process:')

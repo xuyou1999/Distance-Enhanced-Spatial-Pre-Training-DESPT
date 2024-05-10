@@ -365,6 +365,7 @@ def trainModel(name, mode,
     # training settings
     min_val_u_loss = np.inf
     min_val_a_loss = np.inf
+    tolerance = 0
     criterion = nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
     s_time = datetime.now()
@@ -484,7 +485,10 @@ def trainModel(name, mode,
         #     torch.save(model.state_dict(), P.save_path + '/' + name + '_u.pt')
         if val_a_loss < min_val_a_loss:
             min_val_a_loss = val_a_loss
+            tolerance = 0
             torch.save(model.state_dict(), P.save_path + '/' + name + '_a.pt')
+        else:
+            tolerance += 1
         endtime = datetime.now()
         epoch_time = (endtime - starttime).seconds
         print("epoch", epoch,
@@ -501,6 +505,8 @@ def trainModel(name, mode,
                 #  "validation unseen nodes loss:", val_u_loss,
                 "validation unseen nodes loss:", 0,
                  "validation all nodes loss:", val_a_loss))
+        if tolerance >= P.tolerance:
+            break
     e_time = datetime.now()
     print('MODEL TRAINING DURATION:', e_time-m_time)
     torch_score = evaluateModel(model, criterion, model_input, adj_train, train_embed, device_gpu, 0)
@@ -694,6 +700,7 @@ P.is_concat_encoder_model = True
 P.is_layer_after_concat = True
 P.is_always_augmentation = True
 
+P.tolerance = 10
 P.learn_rate = 0.001
 P.pretrain_epoch = 2
 P.train_epoch = 1

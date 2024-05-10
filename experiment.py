@@ -391,6 +391,19 @@ def trainModel(name, mode,
             train_encoder_input = train_iter.dataset.tensors[0][:,-1,:,0].T.to(device_encoder)
             val_u_encoder_input = torch.Tensor(data[:P.train_size,spatialSplit_unseen.i_val]).to(device_encoder).float().T
             val_a_encoder_input = torch.Tensor(data[:P.train_size,spatialSplit_allNod.i_val]).to(device_encoder).float().T
+            if P.is_always_augmentation:
+                if P.augmentation == 'edge_masking':
+                    adj_train = edge_masking(adj_train, 0.02, device_encoder)
+                    adj_val_u = edge_masking(adj_val_u, 0.02, device_encoder)
+                    adj_val_a = edge_masking(adj_val_a, 0.02, device_encoder)
+                elif P.augmentation == 'temporal_shifting':
+                    train_encoder_input = temporal_shifting(train_encoder_input, P.temporal_shifting_r).to(device_encoder)
+                    val_u_encoder_input = temporal_shifting(val_u_encoder_input, P.temporal_shifting_r).to(device_encoder)
+                    val_a_encoder_input = temporal_shifting(val_a_encoder_input, P.temporal_shifting_r).to(device_encoder)
+                elif P.augmentation == 'temporal_shifting_new':
+                    train_encoder_input = temporal_shifting_new(train_encoder_input, P.temporal_shifting_r).to(device_encoder)
+                    val_u_encoder_input = temporal_shifting_new(val_u_encoder_input, P.temporal_shifting_r).to(device_encoder)
+                    val_a_encoder_input = temporal_shifting_new(val_a_encoder_input, P.temporal_shifting_r).to(device_encoder)          
             if P.example_verbose:
                 print('\nThe shape of train_encoder_input', train_encoder_input.shape)
                 print('The shape of val_u_encoder_input', val_u_encoder_input.shape)
@@ -554,6 +567,13 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     if P.is_pretrain:
         with torch.no_grad():
             tst_encoder_input = torch.Tensor(data[:P.train_size,spatialsplit.i_tst]).to(device_encoder).float().T
+            if P.is_always_augmentation:
+                if P.augmentation == 'edge_masking':
+                    adj_tst = edge_masking(adj_tst, 0.02, device_encoder)
+                elif P.augmentation == 'temporal_shifting':
+                    tst_encoder_input = temporal_shifting(tst_encoder_input, P.temporal_shifting_r).to(device_encoder)
+                elif P.augmentation == 'temporal_shifting_new':
+                    tst_encoder_input = temporal_shifting_new(tst_encoder_input, P.temporal_shifting_r).to(device_encoder) 
             if P.example_verbose:
                 print('\nThe shape of tst_encoder_input', tst_encoder_input.shape)
             tst_embed = encoder(tst_encoder_input, adj_tst, P.example_verbose).T.detach().to(device_gpu)
@@ -666,6 +686,7 @@ P.temporal_shifting_r = 0.8
 P.encoder_to_model_ratio = 1
 P.is_concat_encoder_model = True
 P.is_layer_after_concat = True
+P.is_always_augmentation = True
 
 P.learn_rate = 0.001
 P.pretrain_epoch = 2
@@ -739,6 +760,8 @@ def main():
         P.data_path = './data/Hauge/hague_comp_filled.h5'
         if P.adj_method == 1:
             P.adj_path = './data/Hauge/adj_mx_comp1.pkl'
+        if P.adj_method == 2:
+            P.adj_path = './data/Hauge/adj_mx_comp2.pkl'
         P.n_sensor = 144
         data = pd.read_hdf(P.data_path).values
     elif P.dataname == 'HAGUE_FULL_75':
@@ -765,8 +788,12 @@ def main():
     '''
     scaler = StandardScaler()
     data = scaler.fit_transform(data)
+    P.data_mean = scaler.u
+    P.data_std = scaler.z
     if P.example_verbose:
         print('data.shape:', data.shape)
+        print('data mean:', P.data_mean)
+        print('data stadard deviation:', P.data_std)
         if P.dataname == 'EXAMPLE':
             print('\nFirst row at 10 am after scaling:', data[0])
             print('\nSecond row at 10:05 after scaling:', data[1])

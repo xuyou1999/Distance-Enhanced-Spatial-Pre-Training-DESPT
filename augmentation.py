@@ -80,7 +80,7 @@ def temporal_shifting_new(input_tensor, r=0.5):
     
     # Generate alpha from uniform distribution U(r, 1)
     alphas = np.random.uniform(r, 1, size=n)
-    alphas = torch.from_numpy(alphas).float()
+    alphas = torch.from_numpy(alphas).float().to(input_tensor.device)
 
     # Apply temporal shifting according to the provided formula, using a unique alpha for each input
     shifted_tensor = alphas[:, None] * input_tensor[:, :-1] + (1 - alphas[:, None]) * input_tensor[:, 1:]

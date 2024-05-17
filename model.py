@@ -11,6 +11,7 @@ from scipy.sparse.linalg import eigs
 import numpy as np
 import pandas as pd
 
+# GraphWaveNet model
 class gwnet_nconv(nn.Module):
     def __init__(self):
         super(gwnet_nconv,self).__init__()
@@ -60,7 +61,7 @@ class gwnet(nn.Module):
                  device,
                  num_nodes,
                  dropout=0.0,
-                 in_dim=2,
+                 in_dim=1,
                  out_dim=12,
                  residual_channels=32,
                  dilation_channels=32,
@@ -70,7 +71,8 @@ class gwnet(nn.Module):
                  blocks=4,
                  layers=2,
                  sga = True,
-                 adp_adj = False):
+                 adp_adj = False,
+                 support_len=1):
         super(gwnet, self).__init__()
         self.dropout = dropout
         self.blocks = blocks
@@ -132,7 +134,7 @@ class gwnet(nn.Module):
                 additional_scope *= 2
                 # *****************************
                 # VERY IMPORTANT: adjust the adjacency matrix length accordingly!!!!!!
-                self.gconv.append(gwnet_gcn(dilation_channels,residual_channels,dropout,support_len=1 + int(adp_adj)))
+                self.gconv.append(gwnet_gcn(dilation_channels,residual_channels,dropout,support_len=support_len + int(adp_adj)))
 
 
 
@@ -167,7 +169,6 @@ class gwnet(nn.Module):
         return x + e.unsqueeze(0).unsqueeze(-1).expand(x.shape[0],-1,-1,x.shape[-1]) # BDNL
 
     def forward(self, input, adj, embed):
-        # print('shape of input is:', input.shape)
         in_len = input.size(3)
         if in_len<self.receptive_field:
             x = nn.functional.pad(input,(self.receptive_field-in_len,0,0,0))
@@ -224,7 +225,6 @@ class gwnet(nn.Module):
             x = self.gconv[i](x, adj)
             x = x + residual[:, :, :, -x.size(3):]
             x = self.bn[i](x)
-
         x = F.relu(skip)
         x = F.relu(self.end_conv_1(x))
         x = self.end_conv_2(x)
@@ -232,6 +232,7 @@ class gwnet(nn.Module):
         return x
     
 
+# LSTM model
 class lstm_nconv(nn.Module):
     def __init__(self):
         super(lstm_nconv,self).__init__()

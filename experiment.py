@@ -43,7 +43,7 @@ def save_parameters(param_obj, filename):
 
 def getModel(name, device, support_len):
     if name == 'gwnet':
-        model = gwnet(device, num_nodes=P.n_sensor, in_dim=P.n_channel, adp_adj=P.gwnet_is_adp_adj, sga=P.gwnet_is_SGA).to(device)
+        model = gwnet(device, num_nodes=P.n_sensor, in_dim=P.n_channel, adp_adj=P.gwnet_is_adp_adj, sga=P.gwnet_is_SGA, support_len=support_len).to(device)
     elif name == 'LSTM':
         if P.is_pretrain == False:
             lstm_input_dim = 32
@@ -837,5 +837,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+    P = None
 
     

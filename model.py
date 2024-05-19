@@ -42,14 +42,12 @@ class gwnet_gcn(nn.Module):
         # print('shape of support is:', len(support))
         out = [x]
         for a in support:
-            # print('shape of a is:', a.shape)
             x1 = self.nconv(x,a)
             out.append(x1)
             for k in range(2, self.order + 1):
                 x2 = self.nconv(x1,a)
                 out.append(x2)
                 x1 = x2
-        # print('shape of out is:', len(out))
         h = torch.cat(out,dim=1)
         h = self.mlp(h)
         h = F.dropout(h, self.dropout, training=self.training)
@@ -72,7 +70,9 @@ class gwnet(nn.Module):
                  layers=2,
                  sga = True,
                  adp_adj = False,
-                 support_len=1):
+                 support_len=1,
+                 is_concat=True,
+                 is_layer_after_concat=False):
         super(gwnet, self).__init__()
         self.dropout = dropout
         self.blocks = blocks
@@ -88,6 +88,9 @@ class gwnet(nn.Module):
 
         self.start_conv = nn.Conv2d(in_channels=in_dim,
                                     out_channels=residual_channels,
+                                    kernel_size=(1,1))
+        self.second_conv = nn.Conv2d(in_channels=64,
+                                    out_channels=32,
                                     kernel_size=(1,1))
         receptive_field = 1
 
@@ -111,13 +114,20 @@ class gwnet(nn.Module):
             new_dilation = 1
             for i in range(layers):
                 # dilated convolutions
-                self.filter_convs.append(nn.Conv2d(in_channels=residual_channels,
+                if is_concat == True and is_layer_after_concat == False:
+                    self.filter_convs.append(nn.Conv2d(in_channels=2*residual_channels,
                                                    out_channels=dilation_channels,
                                                    kernel_size=(1,kernel_size),dilation=new_dilation))
-
-                self.gate_convs.append(nn.Conv2d(in_channels=residual_channels,
-                                                 out_channels=dilation_channels,
-                                                 kernel_size=(1, kernel_size), dilation=new_dilation))
+                    self.gate_convs.append(nn.Conv2d(in_channels=2*residual_channels,
+                                                    out_channels=dilation_channels,
+                                                    kernel_size=(1,kernel_size),dilation=new_dilation))
+                else:
+                    self.filter_convs.append(nn.Conv2d(in_channels=residual_channels,
+                                                    out_channels=dilation_channels,
+                                                    kernel_size=(1,kernel_size),dilation=new_dilation))
+                    self.gate_convs.append(nn.Conv2d(in_channels=residual_channels,
+                                                    out_channels=dilation_channels,
+                                                    kernel_size=(1, kernel_size), dilation=new_dilation))
 
                 # 1x1 convolution for residual connection
                 self.residual_convs.append(nn.Conv2d(in_channels=dilation_channels,
@@ -134,7 +144,10 @@ class gwnet(nn.Module):
                 additional_scope *= 2
                 # *****************************
                 # VERY IMPORTANT: adjust the adjacency matrix length accordingly!!!!!!
-                self.gconv.append(gwnet_gcn(dilation_channels,residual_channels,dropout,support_len=support_len + int(adp_adj)))
+                if is_concat == True and is_layer_after_concat == False:
+                    self.gconv.append(gwnet_gcn(dilation_channels*2,residual_channels,dropout,support_len=support_len + int(adp_adj)))
+                else:
+                    self.gconv.append(gwnet_gcn(dilation_channels,residual_channels,dropout,support_len=support_len + int(adp_adj)))
 
 
 
@@ -150,7 +163,7 @@ class gwnet(nn.Module):
 
         self.receptive_field = receptive_field
 
-    def spatially_gated_addition(self, x, e):
+    def spatially_gated_addition(self, x, e, is_concat, is_layer_after_concat):
         # x [BDNL] is latent representation
         # e [DN] is embedding
         # only one set, because this is just a quality gate for the embedding
@@ -163,12 +176,15 @@ class gwnet(nn.Module):
         x = x + g * e
         return x
 
-    def naive_addition(self, x, e):
-        # print('shape of x is:', x.shape)
-        # print('shape of e is:', e.shape)
-        return x + e.unsqueeze(0).unsqueeze(-1).expand(x.shape[0],-1,-1,x.shape[-1]) # BDNL
+    def naive_addition(self, x, e, is_concat, is_layer_after_concat):
+        e = e.unsqueeze(0).unsqueeze(-1).expand(x.shape[0],-1,-1,x.shape[-1]) # BDNL
+        if is_concat:
+            x = torch.cat((x, e), dim=1)
+            if is_layer_after_concat:
+                x = self.second_conv(x)
+        return x
 
-    def forward(self, input, adj, embed):
+    def forward(self, input, adj, embed, is_concat, is_layer_after_concat):
         in_len = input.size(3)
         if in_len<self.receptive_field:
             x = nn.functional.pad(input,(self.receptive_field-in_len,0,0,0))
@@ -203,7 +219,7 @@ class gwnet(nn.Module):
 
             #residual = dilation_func(x, dilation, init_dilation, i)
             residual = x
-            x = self.addition(x, embed)
+            x = self.addition(x, embed, is_concat = is_concat, is_layer_after_concat = is_layer_after_concat)
             # dilated convolution
             filter = self.filter_convs[i](x)
             filter = torch.tanh(filter)
@@ -221,7 +237,7 @@ class gwnet(nn.Module):
             skip = s + skip
 
             # GCN
-            x = self.addition(x, embed)
+            x = self.addition(x, embed, is_concat = is_concat, is_layer_after_concat = is_layer_after_concat)
             x = self.gconv[i](x, adj)
             x = x + residual[:, :, :, -x.size(3):]
             x = self.bn[i](x)

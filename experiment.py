@@ -43,7 +43,7 @@ def save_parameters(param_obj, filename):
 
 def getModel(name, device, support_len):
     if name == 'gwnet':
-        model = gwnet(device, num_nodes=P.n_sensor, in_dim=P.n_channel, adp_adj=P.gwnet_is_adp_adj, sga=P.gwnet_is_SGA, support_len=support_len).to(device)
+        model = gwnet(device, num_nodes=P.n_sensor, in_dim=P.n_channel, adp_adj=P.gwnet_is_adp_adj, sga=P.gwnet_is_SGA, support_len=support_len, is_concat=P.is_concat_encoder_model, is_layer_after_concat=P.is_layer_after_concat).to(device)
     elif name == 'LSTM':
         if P.is_pretrain == False:
             lstm_input_dim = 32
@@ -447,7 +447,7 @@ def trainModel(name, mode,
         for x, y in model_input:
             # Apply prediction
             if P.model == 'gwnet':
-                y_pred = model(x.to(device_gpu), adj_train, train_embed)
+                y_pred = model(x.to(device_gpu), adj_train, train_embed, P.is_concat_encoder_model, P.is_layer_after_concat)
             elif P.model == 'LSTM':
                 y_pred = model(x.to(device_gpu), train_embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj_train, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat)
             '''
@@ -531,7 +531,7 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
     with torch.no_grad():
         for x, y in data_iter:
             if P.model == 'gwnet':
-                y_pred = model(x.to(device), adj, embed)
+                y_pred = model(x.to(device), adj, embed, P.is_concat_encoder_model, P.is_layer_after_concat)
                 y_pred = y_pred[:,:,sensor_idx_start:,]
             elif P.model == 'LSTM':
                 x = x[:,:,sensor_idx_start:,].to(device)
@@ -650,7 +650,7 @@ def predictModel(model, data_iter, adj, embed, device):
     with torch.no_grad():
         for x, y in data_iter:
             if P.model == 'gwnet':
-                YS_pred_batch = model(x.to(device), adj, embed)
+                YS_pred_batch = model(x.to(device), adj, embed, P.is_concat_encoder_model, P.is_layer_after_concat)
             elif P.model == 'LSTM':
                 YS_pred_batch = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat)
             YS_pred_batch = YS_pred_batch.cpu().numpy()

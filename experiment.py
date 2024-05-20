@@ -275,6 +275,13 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
                 print('\nthe first augmentated input, for fixed temporal shifting', x1[1,:])
                 print('the second augmentated input, for fixed temporal shifting', x2[1,:])
             loss = model.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
+        elif P.augmentation == 'input_smoothing':
+            x1 = input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device)
+            x2 = input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device)
+            if P.example_verbose:
+                print('\nAugmented input for input smoothing')
+            loss = model.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
+
 
         # Backward and optimize
         optimizer.zero_grad()
@@ -340,6 +347,8 @@ def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
             l = model.contrast(temporal_shifting(x[0], P.temporal_shifting_r).to(device),temporal_shifting(x[0], P.temporal_shifting_r).to(device), adj, adj, sensor_idx_start, P.example_verbose)
         elif P.augmentation == 'temporal_shifting_new':
             l = model.contrast(temporal_shifting_new(x[0], P.temporal_shifting_r).to(device),temporal_shifting_new(x[0], P.temporal_shifting_r).to(device), adj, adj, sensor_idx_start, P.example_verbose)
+        elif P.augmentation == 'input_smoothing':
+            l = model.contrast(input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device),input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device), adj, adj, sensor_idx_start, P.example_verbose)
         return l
 
 def trainModel(name, mode, 
@@ -404,7 +413,11 @@ def trainModel(name, mode,
                 elif P.augmentation == 'temporal_shifting_new':
                     train_encoder_input = temporal_shifting_new(train_encoder_input, P.temporal_shifting_r).to(device_encoder)
                     val_u_encoder_input = temporal_shifting_new(val_u_encoder_input, P.temporal_shifting_r).to(device_encoder)
-                    val_a_encoder_input = temporal_shifting_new(val_a_encoder_input, P.temporal_shifting_r).to(device_encoder)          
+                    val_a_encoder_input = temporal_shifting_new(val_a_encoder_input, P.temporal_shifting_r).to(device_encoder)
+                elif P.augmentation == 'input_smoothing':
+                    train_encoder_input = input_smoothing(train_encoder_input, P.input_smoothing_r, P.input_smoothing_e).to(device_encoder)
+                    val_u_encoder_input = input_smoothing(val_u_encoder_input, P.input_smoothing_r, P.input_smoothing_e).to(device_encoder)
+                    val_a_encoder_input = input_smoothing(val_a_encoder_input, P.input_smoothing_r, P.input_smoothing_e).to(device_encoder)
             if P.example_verbose:
                 print('\nThe shape of train_encoder_input', train_encoder_input.shape)
                 print('The shape of val_u_encoder_input', val_u_encoder_input.shape)
@@ -586,6 +599,8 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
                     tst_encoder_input = temporal_shifting(tst_encoder_input, P.temporal_shifting_r).to(device_encoder)
                 elif P.augmentation == 'temporal_shifting_new':
                     tst_encoder_input = temporal_shifting_new(tst_encoder_input, P.temporal_shifting_r).to(device_encoder) 
+                elif P.augmentation == 'input_smoothing':
+                    tst_encoder_input = input_smoothing(tst_encoder_input, P.input_smoothing_r, P.input_smoothing_e).to(device_encoder)
             if P.example_verbose:
                 print('\nThe shape of tst_encoder_input', tst_encoder_input.shape)
             tst_embed = encoder(tst_encoder_input, adj_tst, P.example_verbose).T.detach().to(device_gpu)
@@ -695,6 +710,8 @@ P.gcn_order = 1
 P.gcn_dropout = 0
 P.augmentation = 'sampler'
 P.temporal_shifting_r = 0.8
+P.input_smoothing_r = 0.9
+P.input_smoothing_e = 20
 P.encoder_to_model_ratio = 1
 P.is_concat_encoder_model = True
 P.is_layer_after_concat = True

@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from scipy.fftpack import dct, idct
 
 def edge_masking(adj_matrix, rem, device='cpu'):
     """
@@ -91,3 +92,38 @@ def temporal_shifting_new(input_tensor, r=0.5):
     shifted_tensor = torch.cat((shifted_tensor, last_column), dim=1)
     
     return shifted_tensor
+
+def input_smoothing(data, r, e):
+    """
+    Perform input smoothing on the data tensor without using an adjacency matrix.
+    
+    Parameters:
+        data (torch.Tensor): The input data tensor of shape (num_sensors, data_length).
+        r (float): Scaling factor for random matrix generation.
+        e (int): Number of low-frequency components to keep unchanged.
+        
+    Returns:
+        torch.Tensor: Smoothed data tensor.
+    """
+    num_sensors, data_length = data.shape
+    
+    # Convert data from PyTorch tensor to NumPy array
+    data_np = data.cpu().numpy()
+    
+    # Apply DCT to each node's data
+    X_dct = dct(data_np, axis=1, norm='ortho')
+    
+    # Generate random matrix M
+    L_minus_Eis = data_length - e
+    M = np.random.uniform(r, 1, (num_sensors, L_minus_Eis))
+    
+    # Scale high-frequency components
+    X_dct[:, e:] *= M
+    
+    # Apply inverse DCT to convert back to time domain
+    X_idct = idct(X_dct, axis=1, norm='ortho')
+    
+    # Convert the result back to PyTorch tensor
+    smoothed_data = torch.tensor(X_idct, dtype=data.dtype)
+    
+    return smoothed_data

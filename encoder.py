@@ -8,6 +8,30 @@ import torch.fft as fft
 from einops import reduce, rearrange
 import gc
 
+def nt_xent_loss(out_1, out_2, temperature):
+    """
+    Loss used in SimCLR.
+    InfoNCE loss
+    Ref: https://github.com/PyTorchLightning/lightning-bolts/blob/master/pl_bolts/losses/self_supervised_learning.py
+    """
+    out = torch.cat([out_1, out_2], dim=0)
+    n_samples = len(out)
+
+    # Full similarity matrix
+    cov = torch.mm(out, out.t().contiguous())
+    sim = torch.exp(cov / temperature)
+
+    # Negative similarity
+    mask = ~torch.eye(n_samples, device=sim.device).bool()
+    neg = sim.masked_select(mask).view(n_samples, -1).sum(dim=-1)
+
+    # Positive similarity :
+    pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
+    pos = torch.cat([pos, pos], dim=0)
+    loss = -torch.log(pos / neg).mean()
+
+    return loss
+
 def print_largest_cuda_tensors(n=10):
     """
     Print details of the largest tensors allocated on CUDA devices.
@@ -30,6 +54,8 @@ def print_largest_cuda_tensors(n=10):
         print(f"Device {i}: Total memory allocated: {torch.cuda.memory_allocated(i)} bytes")
         print(f"Device {i}: Total memory reserved: {torch.cuda.memory_reserved(i)} bytes")
 
+
+# ------------------- SCPT -------------------
 class nconv(nn.Module):
     def __init__(self):
         super(nconv,self).__init__()
@@ -169,31 +195,72 @@ class Contrastive_FeatureExtractor_conv(nn.Module):
         return nt_xent_loss(x1,x2,self.temperature)
     
 
-def nt_xent_loss(out_1, out_2, temperature):
-    """
-    Loss used in SimCLR.
-    InfoNCE loss
-    Ref: https://github.com/PyTorchLightning/lightning-bolts/blob/master/pl_bolts/losses/self_supervised_learning.py
-    """
-    out = torch.cat([out_1, out_2], dim=0)
-    n_samples = len(out)
-
-    # Full similarity matrix
-    cov = torch.mm(out, out.t().contiguous())
-    sim = torch.exp(cov / temperature)
-
-    # Negative similarity
-    mask = ~torch.eye(n_samples, device=sim.device).bool()
-    neg = sim.masked_select(mask).view(n_samples, -1).sum(dim=-1)
-
-    # Positive similarity :
-    pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
-    pos = torch.cat([pos, pos], dim=0)
-    loss = -torch.log(pos / neg).mean()
-
-    return loss
-
 # ------------------- CoST -------------------
+class SamePadConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation=1, groups=1):
+        super().__init__()
+        self.receptive_field = (kernel_size - 1) * dilation + 1
+        padding = self.receptive_field // 2
+        self.conv = nn.Conv1d(
+            in_channels, out_channels, kernel_size,
+            padding=padding,
+            dilation=dilation,
+            groups=groups
+        )
+        self.remove = 1 if self.receptive_field % 2 == 0 else 0
+        
+    def forward(self, x):
+        out = self.conv(x)
+        if self.remove > 0:
+            out = out[:, :, : -self.remove]
+        return out
+
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, final=False):
+        super().__init__()
+        self.conv1 = SamePadConv(in_channels, out_channels, kernel_size, dilation=dilation)
+        self.conv2 = SamePadConv(out_channels, out_channels, kernel_size, dilation=dilation)
+        self.projector = nn.Conv1d(in_channels, out_channels, 1) if in_channels != out_channels or final else None
+    
+    def forward(self, x):
+        residual = x if self.projector is None else self.projector(x)
+        x = F.gelu(x)
+        x = self.conv1(x)
+        x = F.gelu(x)
+        x = self.conv2(x)
+        return x + residual
+
+
+class DilatedConvEncoder(nn.Module):
+    def __init__(self, in_channels, channels, kernel_size, extract_layers=None):
+        super().__init__()
+
+        if extract_layers is not None:
+            assert len(channels) - 1 in extract_layers
+
+        self.extract_layers = extract_layers
+        self.net = nn.Sequential(*[
+            ConvBlock(
+                channels[i-1] if i > 0 else in_channels,
+                channels[i],
+                kernel_size=kernel_size,
+                dilation=2**i,
+                final=(i == len(channels)-1)
+            )
+            for i in range(len(channels))
+        ])
+        
+    def forward(self, x):
+        if self.extract_layers is not None:
+            outputs = []
+            for idx, mod in enumerate(self.net):
+                x = mod(x)
+                if idx in self.extract_layers:
+                    outputs.append(x)
+            return outputs
+        return self.net(x)
+
 class BandedFourierLayer(nn.Module):
     def __init__(self, in_channels, out_channels, band, num_bands, length=201):
         super().__init__()
@@ -243,7 +310,162 @@ class BandedFourierLayer(nn.Module):
         bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
         nn.init.uniform_(self.bias, -bound, bound)
 
+
 class CoSTEncoder(nn.Module):
+    def __init__(self, input_dims, output_dims, 
+                 kernels, length, hidden_dims, depth,
+                 alpha, temperature,
+                 is_gcn, is_sampler, support_len, 
+                 gcn_order, gcn_dropout
+                 ):
+        super().__init__()
+        self.is_gcn = is_gcn
+        self.is_sampler = is_sampler
+        # self.conv1 = torch.nn.Conv1d( 1, 32, 13, stride=1)
+        component_dims = output_dims // 2
+        self.input_dims = input_dims
+        self.output_dims = output_dims
+        self.component_dims = component_dims
+        self.alpha = alpha
+        self.temperature = temperature
+        self.gcn_trend = gcn(16, 16, gcn_dropout, support_len, gcn_order)
+        self.gcn_season = gcn(16, 16, gcn_dropout, support_len, gcn_order)
+        self.input_fc = nn.Linear(input_dims, hidden_dims)
+        self.feature_extractor = DilatedConvEncoder(
+            hidden_dims,
+            [hidden_dims] * depth + [output_dims],
+            kernel_size=3
+        )
+        self.repr_dropout = nn.Dropout(p=0.1)
+        self.kernels = kernels
+        self.tfd = nn.ModuleList(
+            [nn.Conv1d(output_dims, component_dims, k, padding=k-1) for k in kernels]
+        )
+        self.sfd = nn.ModuleList(
+            [BandedFourierLayer(output_dims, component_dims, b, 1, length=length) for b in range(1)]
+        )
+        self.temperature = temperature
+        self.fc1_trend = torch.nn.Linear(16*3, 16)
+        self.fc1_season = torch.nn.Linear(16*3, 16)
+        self.fc2 = torch.nn.Linear(32, 32)
+        self.bn3_trend = torch.nn.BatchNorm1d(16*3)
+        self.bn3_season = torch.nn.BatchNorm1d(16*3)
+        self.bn4_trend = torch.nn.BatchNorm1d(16)
+        self.bn4_season = torch.nn.BatchNorm1d(16)
+    
+    def forward(self, x, support, is_example):
+        x = self.input_fc(x[:,:,None]) # B x T x Co
+        x = x.transpose(1, 2)
+        x = self.feature_extractor(x) # B x Co x T
+        
+        # Trend component
+        trend = []
+        for idx, mod in enumerate(self.tfd):
+            out = mod(x)  # b d t
+            if self.kernels[idx] != 1:
+                out = out[..., :-(self.kernels[idx] - 1)]
+            trend.append(out.transpose(1, 2))  # b t d
+            # print('trend.shape', trend[-1].shape)
+        trend = reduce(
+            rearrange(trend, 'list b t d -> list b t d'),
+            'list b t d -> b t d', 'mean'
+        ).transpose(1, 2)
+
+        print('trend.shape', trend.shape)
+
+        # Sampling and aggregation for trend component
+        if self.is_sampler == False:
+            trend_ = trend
+        else:
+            n_half = int(trend.shape[-1]/2)
+            trend_ = torch.empty(trend.shape[0], trend.shape[1], n_half).to(trend.device)
+            for i in range(trend.shape[0]):
+                idx = np.arange(trend.shape[2])
+                np.random.shuffle(idx)
+                idx = idx < n_half
+                trend_[i, :, :] = trend[i, :, idx]
+        trend_u = trend_.mean(axis=2)
+        trend_z = trend_.std(axis=2)
+        trend_x, _ = torch.max(trend_, axis=2)
+        trend = torch.cat((trend_u, trend_z, trend_x), axis=1)
+        trend = self.bn3_trend(trend)
+        trend = self.fc1_trend(trend)
+        trend = F.relu(trend)
+        trend = self.bn4_trend(trend)
+        if self.is_gcn == True:
+            trend = self.gcn_trend(trend, support)
+
+        print('trend.shape', trend.shape)
+        
+        # Seasonal component
+        x = x.transpose(1, 2)  # B x T x Co
+        org_device = x.device
+        season = []
+        for mod in self.sfd:
+            if x.device.type == 'mps':
+                out = mod(x.to('cpu')).to(org_device)  # b t d
+            else:
+                out = mod(x)
+            season.append(out)
+        season = season[0]
+        season = self.repr_dropout(season).transpose(1, 2)
+
+        # Sampling and aggregation for seasonal component
+        if self.is_sampler == False:
+            season_ = season
+        else:
+            n_half = int(season.shape[-1]/2)
+            season_ = torch.empty(season.shape[0], season.shape[1], n_half).to(season.device)
+            for i in range(season.shape[0]):
+                idx = np.arange(season.shape[2])
+                np.random.shuffle(idx)
+                idx = idx < n_half
+                season_[i, :, :] = season[i, :, idx]
+        season_u = season_.mean(axis=2)
+        season_z = season_.std(axis=2)
+        season_x, _ = torch.max(season_, axis=2)
+        season = torch.cat((season_u, season_z, season_x), axis=1)
+        season = self.bn3_season(season)
+        season = self.fc1_season(season)
+        season = F.relu(season)
+        season = self.bn4_season(season)
+        if self.is_gcn == True:
+            season = self.gcn_season(season, support)
+
+        # Concatenate trend and seasonal components
+        x = torch.cat((trend, season), dim=1)
+
+        return x
+
+    def contrast(self, x1, x2, support1, support2, sensor_idx_start, is_example):
+        x1 = self(x1, support1, is_example)
+        x1_trend = x1[:,:16]
+        x1_season = x1[:,16:]
+        x2 = self(x2, support2, is_example)
+        x2_trend = x2[:,:16]
+        x2_season = x2[:,16:]
+        # projection
+        x1_trend = self.fc2(x1_trend)
+        x1_season = self.fc2(x1_season)
+        x2_trend = self.fc2(x2_trend)
+        x2_season = self.fc2(x2_season)
+        # L2 norm
+        x1_trend = F.normalize(x1_trend)
+        x1_season = F.normalize(x1_season)
+        x2_trend = F.normalize(x2_trend)
+        x2_season = F.normalize(x2_season)
+        x1_trend = x1_trend[sensor_idx_start:]
+        x1_season = x1_season[sensor_idx_start:]
+        x2_trend = x2_trend[sensor_idx_start:]
+        x2_season = x2_season[sensor_idx_start:]
+        # calculate loss
+        trend_loss = nt_xent_loss(x1_trend, x2_trend, self.temperature)
+        season_loss = nt_xent_loss(x1_season, x2_season, self.temperature)
+        final_loss = trend_loss + self.alpha * season_loss
+        return final_loss
+
+
+class CoSTEncoder_legacy(nn.Module):
     def __init__(self, input_dims, output_dims, kernels,alpha, temperature,
                  is_gcn, is_sampler, support_len, gcn_order, gcn_dropout
                  ):

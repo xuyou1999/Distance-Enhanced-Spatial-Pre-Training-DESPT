@@ -524,7 +524,10 @@ def trainModel(name, mode,
     print('MODEL TRAINING DURATION:', e_time-m_time)
     torch_score = evaluateModel(model, criterion, model_input, adj_train, train_embed, device_gpu, 0)
     # Write the final results to the log file
-    df = pd.read_csv('save/results.csv')
+    try:
+        df = pd.read_csv('save/results.csv')
+    except FileNotFoundError:
+        df = pd.DataFrame(columns=['exe_id', 'min_pretrain_val_loss', 'pretrain_time'])
     row_exists = 'exe_id' in df.columns and any(df['exe_id'] == P.exe_id)
     if row_exists:
         df.loc[df['exe_id'] == P.exe_id, ['train_loss', 'min_val_a_loss', 'min_val_u_loss', 'train_time']] = [torch_score, min_val_a_loss, min_val_u_loss, e_time-m_time]

@@ -240,9 +240,9 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
     else:
         is_sampler = False
     # Get the encoder model
-    if P.is_cost:
+    if P.pre_model == 'COST':
         model = CoSTEncoder(1, 32, P.cost_kernals, 201, 64, 10, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device)
-    else:
+    elif P.pre_model == 'TCN':
         model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device)
     # Start pretraining
     min_val_loss = np.inf
@@ -281,7 +281,6 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
             if P.example_verbose:
                 print('\nAugmented input for input smoothing')
             loss = model.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
-
 
         # Backward and optimize
         optimizer.zero_grad()
@@ -356,7 +355,6 @@ def trainModel(name, mode,
         adj_train, adj_val_u, adj_val_a,
         spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu):
     print('\ntrainModel Started ...')
-    print('TIMESTEP_IN, TIMESTEP_OUT', P.timestep_in, P.timestep_out)
 
     # Set the device for the encoder
     if P.train_encoder_on == 'cpu':
@@ -374,6 +372,7 @@ def trainModel(name, mode,
     # training settings
     min_val_u_loss = np.inf
     min_val_a_loss = np.inf
+    final_train_loss = np.inf
     tolerance = 0
     criterion = nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
@@ -391,9 +390,9 @@ def trainModel(name, mode,
 
     # Get the enbeddings from the encoder
     if P.is_pretrain:
-        if P.is_cost:
+        if P.pre_model == 'COST':
             encoder = CoSTEncoder(1, 32, P.cost_kernals, 201, 64, 10, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device_encoder)
-        else:
+        elif P.pre_model == 'TCN':
             encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device_encoder)
         encoder.eval()
         with torch.no_grad():
@@ -491,13 +490,10 @@ def trainModel(name, mode,
         if P.example_verbose:
             print('\nThe validation for model training starts at index', sensor_idx_start)
         # Calculate the loss for the validation set, and save the optimal model
-        # val_u_loss = evaluateModel(model, criterion, val_u_iter, adj_val_u, val_u_embed, device_gpu, 0)
         val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, device_gpu, sensor_idx_start)
-        # if val_u_loss < min_val_u_loss:
-        #     min_val_u_loss = val_u_loss
-        #     torch.save(model.state_dict(), P.save_path + '/' + name + '_u.pt')
         if val_a_loss < min_val_a_loss:
             min_val_a_loss = val_a_loss
+            final_train_loss = train_loss
             tolerance = 0
             torch.save(model.state_dict(), P.save_path + '/' + name + '_a.pt')
         else:
@@ -507,22 +503,17 @@ def trainModel(name, mode,
         print("epoch", epoch,
             "time used:",epoch_time," seconds ",
             "train loss:", train_loss,
-            # "validation unseen nodes loss:", val_u_loss,
-            "validation unseen nodes loss:", 0,
             "validation all nodes loss:", val_a_loss)
         with open(P.save_path + '/' + name + '_log.txt', 'a') as f:
-            f.write("%s %d, %s %d %s, %s %.10f, %s %.10f, %s %.10f\n" % \
+            f.write("%s %d, %s %d %s, %s %.10f, %s %.10f\n" % \
                 ("epoch", epoch,
                  "time used:",epoch_time," seconds ",
                  "train loss:", train_loss,
-                #  "validation unseen nodes loss:", val_u_loss,
-                "validation unseen nodes loss:", 0,
                  "validation all nodes loss:", val_a_loss))
         if tolerance >= P.tolerance:
             break
     e_time = datetime.now()
     print('MODEL TRAINING DURATION:', e_time-m_time)
-    torch_score = evaluateModel(model, criterion, model_input, adj_train, train_embed, device_gpu, 0)
     # Write the final results to the log file
     try:
         df = pd.read_csv('save/results.csv')
@@ -530,13 +521,13 @@ def trainModel(name, mode,
         df = pd.DataFrame(columns=['exe_id', 'min_pretrain_val_loss', 'pretrain_time'])
     row_exists = 'exe_id' in df.columns and any(df['exe_id'] == P.exe_id)
     if row_exists:
-        df.loc[df['exe_id'] == P.exe_id, ['train_loss', 'min_val_a_loss', 'min_val_u_loss', 'train_time']] = [torch_score, min_val_a_loss, min_val_u_loss, e_time-m_time]
+        df.loc[df['exe_id'] == P.exe_id, ['train_loss', 'min_val_a_loss', 'train_time']] = [final_train_loss, min_val_a_loss, e_time-m_time]
     else:
-        new_row = pd.DataFrame({'exe_id': [P.exe_id], 'train_loss': [torch_score], 'min_val_a_loss': [min_val_a_loss], 'min_val_u_loss': [min_val_u_loss], 'train_time': [e_time-m_time]})
+        new_row = pd.DataFrame({'exe_id': [P.exe_id], 'train_loss': [final_train_loss], 'min_val_a_loss': [min_val_a_loss], 'train_time': [e_time-m_time]})
         df = pd.concat([df, new_row], ignore_index=True)
     df.to_csv('save/results.csv', index=False)
     with open(P.save_path + '/' + name + '_prediction_scores.txt', 'a') as f:
-        f.write("%s, %s, %s, %.10e, %.10f\n" % (name, mode, 'MAE on train', torch_score, torch_score))
+        f.write("%s, %s, %s, %.10f\n" % (name, mode, 'MAE on train', final_train_loss))
     print('trainModel Ended ...\n')
 
 def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start):
@@ -576,9 +567,9 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
         is_sampler = False
     
     if P.is_pretrain:
-        if P.is_cost:
+        if P.pre_model == 'COST':
             encoder = CoSTEncoder(1, 32, P.cost_kernals, 201, 64, 10, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst), P.gcn_order, P.gcn_dropout).to(device_encoder)
-        else:
+        elif P.pre_model == 'TCN':
             encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst), P.gcn_order, P.gcn_dropout).to(device_encoder)
         encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
         encoder.eval()
@@ -638,21 +629,18 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     original_shape = np.squeeze(YS).shape
     YS = scaler.inverse_transform(np.squeeze(YS).reshape(-1, YS.shape[2])).reshape(original_shape)
     YS_pred  = scaler.inverse_transform(np.squeeze(YS_pred).reshape(-1, YS_pred.shape[2])).reshape(original_shape)
-    # print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
-    # np.save(P.save_path + '/' + P.MODELNAME + '_' + mode + '_' + name +'_prediction.npy', YS_pred)
-    # np.save(P.save_path + '/' + P.MODELNAME + '_' + mode + '_' + name +'_groundtruth.npy', YS)
     MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS, YS_pred)
     # Write the final results to the log file
     df = pd.read_csv('save/results.csv')
-    columns_to_update = [mode+'_loss', 'encoder_infer_time', 'model_infer_time']
-    values_to_assign = [torch_score, m_time-s_time, e_time-m_time]
+    columns_to_update = [mode+'_loss', mode+'_MAE', 'encoder_infer_time', 'model_infer_time']
+    values_to_assign = [torch_score, MAE, m_time-s_time, e_time-m_time]
     df.loc[df['exe_id'] == P.exe_id, columns_to_update] = values_to_assign
     df.to_csv('save/results.csv', index=False) 
 
     print('*' * 40)
-    print("%s, %s, Torch MSE, %.10e, %.10f" % (name, mode, torch_score, torch_score))
+    print("%s, %s, Torch MAE, %.10f" % (name, mode, torch_score))
     f = open(P.save_path + '/' + name + '_prediction_scores.txt', 'a')
-    f.write("%s, %s, Torch MSE, %.10e, %.10f\n" % (name, mode, torch_score, torch_score))
+    f.write("%s, %s, Torch MAE, %.10f\n" % (name, mode, torch_score))
     print("all pred steps, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f" % (name, mode, MSE, RMSE, MAE, MAPE))
     f.write("all pred steps, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (name, mode, MSE, RMSE, MAE, MAPE))
     for i in range(P.timestep_out):
@@ -681,6 +669,7 @@ System parameters
 P = type('Parameters', (object,), {})()
 P.dataname = 'METRLA'
 P.model = 'LSTM'
+P.pre_model = 'TCN'
 P.seed = 0
 
 P.t_train = 0.7
@@ -702,7 +691,6 @@ P.gwnet_is_SGA = False
 P.adj_type = 'doubletransition'
 P.adj_method = 1
 P.adj_diag = 0
-P.is_cost = True
 P.cost_kernals = [1, 2, 4, 8, 16, 32, 64, 128]
 P.cost_alpha = 0.5
 P.cl_temperature = 1
@@ -711,6 +699,7 @@ P.is_GCN_encoder = True
 P.is_GCN_after_CL = True
 P.gcn_order = 1
 P.gcn_dropout = 0
+
 P.augmentation = 'sampler'
 P.temporal_shifting_r = 0.8
 P.input_smoothing_r = 0.9

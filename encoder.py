@@ -321,7 +321,6 @@ class CoSTEncoder(nn.Module):
         super().__init__()
         self.is_gcn = is_gcn
         self.is_sampler = is_sampler
-        # self.conv1 = torch.nn.Conv1d( 1, 32, 13, stride=1)
         component_dims = output_dims // 2
         self.input_dims = input_dims
         self.output_dims = output_dims
@@ -371,8 +370,6 @@ class CoSTEncoder(nn.Module):
             'list b t d -> b t d', 'mean'
         ).transpose(1, 2)
 
-        print('trend.shape', trend.shape)
-
         # Sampling and aggregation for trend component
         if self.is_sampler == False:
             trend_ = trend
@@ -394,8 +391,6 @@ class CoSTEncoder(nn.Module):
         trend = self.bn4_trend(trend)
         if self.is_gcn == True:
             trend = self.gcn_trend(trend, support)
-
-        print('trend.shape', trend.shape)
         
         # Seasonal component
         x = x.transpose(1, 2)  # B x T x Co

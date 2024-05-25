@@ -490,7 +490,7 @@ def trainModel(name, mode,
         if P.example_verbose:
             print('\nThe validation for model training starts at index', sensor_idx_start)
         # Calculate the loss for the validation set, and save the optimal model
-        val_a_loss = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, device_gpu, sensor_idx_start)
+        val_a_loss, Y_pred, Y = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, device_gpu, sensor_idx_start)
         if val_a_loss < min_val_a_loss:
             min_val_a_loss = val_a_loss
             final_train_loss = train_loss
@@ -531,6 +531,8 @@ def trainModel(name, mode,
     print('trainModel Ended ...\n')
 
 def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start):
+    YS_pred = []
+    Y = []
     model.eval()
     torch.cuda.empty_cache()
     l_sum, n = 0.0, 0
@@ -551,7 +553,14 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
             l = criterion(y_pred, y.to(device))
             l_sum += l.item() * y.shape[0]
             n += y.shape[0]
-    return l_sum / n
+
+            y = y.cpu().numpy()
+            y_pred = y_pred.cpu().numpy()
+            Y.append(y)
+            YS_pred.append(y_pred)
+        YS_pred = np.vstack(YS_pred)
+        Y = np.vstack(Y)
+    return l_sum / n, YS_pred, Y
 
 def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_gpu):
     criterion = nn.L1Loss()
@@ -615,16 +624,11 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     Prediction is on all sensors
     But the loss is calculated only for the sensors after sensor_idx_start
     '''
-    torch_score = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, device_gpu, sensor_idx_start)
+    torch_score, YS_pred, YS = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, device_gpu, sensor_idx_start)
     e_time = datetime.now()
     print('Model Infer End ...', e_time)
     
     print('MODEL INFER DURATION:', e_time-m_time)
-    YS_pred = predictModel(model, test_iter, adj_tst, tst_embed, device_gpu)
-    YS = test_iter.dataset.tensors[1].cpu().numpy()
-    if P.is_testunseen:
-        YS_pred = YS_pred[:,:,len(spatialsplit.i_val):,:]
-        YS = YS[:,:,len(spatialsplit.i_val):,:]
     print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
     original_shape = np.squeeze(YS).shape
     YS = scaler.inverse_transform(np.squeeze(YS).reshape(-1, YS.shape[2])).reshape(original_shape)
@@ -649,20 +653,6 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
         f.write("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
     f.close()
     print('Model Testing Ended ...', time.ctime())
-
-def predictModel(model, data_iter, adj, embed, device):
-    YS_pred = []
-    model.eval()
-    with torch.no_grad():
-        for x, y in data_iter:
-            if P.model == 'gwnet':
-                YS_pred_batch = model(x.to(device), adj, embed, P.is_concat_encoder_model, P.is_layer_after_concat)
-            elif P.model == 'LSTM':
-                YS_pred_batch = model(x.to(device), embed, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat)
-            YS_pred_batch = YS_pred_batch.cpu().numpy()
-            YS_pred.append(YS_pred_batch)
-        YS_pred = np.vstack(YS_pred)
-    return YS_pred
 
 '''
 System parameters

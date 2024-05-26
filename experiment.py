@@ -531,7 +531,7 @@ def trainModel(name, mode,
         f.write("%s, %s, %s, %.10f\n" % (name, mode, 'MAE on train', final_train_loss))
     print('trainModel Ended ...\n')
 
-def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start):
+def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start, test = False):
     YS_pred = []
     Y = []
     model.eval()
@@ -553,15 +553,18 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
                 print('The shape of y', y.shape)
             y_pred = scaler.inverse_transform(y_pred)
             y = scaler.inverse_transform(y.to(device))
-            l = criterion(y.to(device), y_pred.to(device))
-            l_sum += l.item() * y.shape[0]
-            n += y.shape[0]
-
+            if test == False:
+                l = criterion(y.to(device), y_pred.to(device))
+                l_sum += l.item() * y.shape[0]
+                n += y.shape[0]
             Y.append(y)
             YS_pred.append(y_pred)
         YS_pred = torch.vstack(YS_pred)
         Y = torch.vstack(Y)
-    return l_sum / n, YS_pred, Y
+    if test == False:
+        return l_sum / n, YS_pred, Y
+    else:
+        return YS_pred, Y
 
 def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_gpu):
     criterion = Metrics.MAE
@@ -625,7 +628,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     Prediction is on all sensors
     But the loss is calculated only for the sensors after sensor_idx_start
     '''
-    torch_score, YS_pred, YS = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, device_gpu, sensor_idx_start)
+    YS_pred, YS = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, device_gpu, sensor_idx_start, test = True)
     e_time = datetime.now()
     print('Model Infer End ...', e_time)
     
@@ -654,6 +657,11 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     for i in range(P.timestep_out):
         MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS[:, i, :], YS_pred[:, i, :])
         MSE, RMSE, MAE, MAPE = MSE.cpu().numpy(), RMSE.cpu().numpy(), MAE.cpu().numpy(), MAPE.cpu().numpy()
+        df = pd.read_csv('save/results.csv')
+        columns_to_update = [mode+'_step_'+str(i+1)]
+        values_to_assign = [MAE]
+        df.loc[df['exe_id'] == P.exe_id, columns_to_update] = values_to_assign
+        df.to_csv('save/results.csv', index=False)
         print("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
         f.write("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
     f.close()

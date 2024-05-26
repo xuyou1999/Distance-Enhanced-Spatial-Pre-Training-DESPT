@@ -374,7 +374,7 @@ def trainModel(name, mode,
     min_val_a_loss = np.inf
     final_train_loss = np.inf
     tolerance = 0
-    criterion = nn.L1Loss()
+    criterion = Metrics.MAE
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
     s_time = datetime.now()
 
@@ -472,8 +472,9 @@ def trainModel(name, mode,
                 print('The shape of y', y.shape)
                 print('The corresponding second instance of y_pred', y_pred[0,:,1,0])
                 print('The corresponding second instance of y', y[0,:,1,0])
-            # Calculate the loss: L1 loss
-            loss = criterion(y_pred, y.to(device_gpu))
+            y_pred = scaler.inverse_transform(y_pred)
+            y = scaler.inverse_transform(y.to(device_gpu))
+            loss = criterion(y, y_pred)
 
             optimizer.zero_grad()
             loss.backward()
@@ -540,30 +541,30 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
     with torch.no_grad():
         for x, y in data_iter:
             if P.model == 'gwnet':
-                y_pred = model(x.to(device), adj, embed, P.is_concat_encoder_model, P.is_layer_after_concat)
+                y_pred = model(x.to(device), adj, embed, P.is_concat_encoder_model, P.is_layer_after_concat).to(device)
                 y_pred = y_pred[:,:,sensor_idx_start:,]
             elif P.model == 'LSTM':
                 x = x[:,:,sensor_idx_start:,].to(device)
-                y_pred = model(x, embed_after_index, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat)
-            y = y[:,:,sensor_idx_start:,]
+                y_pred = model(x, embed_after_index, P.encoder_to_model_ratio, P.is_concat_encoder_model, support = adj, is_example = P.example_verbose, is_layer_after_concat = P.is_layer_after_concat).to(device)
+            y = y[:,:,sensor_idx_start:,].to(device)
             if P.example_verbose:
                 print('\nIn model evaluation process:')
                 print('The shape of y_pred', y_pred.shape)
                 print('The shape of y', y.shape)
-            l = criterion(y_pred, y.to(device))
+            y_pred = scaler.inverse_transform(y_pred)
+            y = scaler.inverse_transform(y.to(device))
+            l = criterion(y.to(device), y_pred.to(device))
             l_sum += l.item() * y.shape[0]
             n += y.shape[0]
 
-            y = y.cpu().numpy()
-            y_pred = y_pred.cpu().numpy()
             Y.append(y)
             YS_pred.append(y_pred)
-        YS_pred = np.vstack(YS_pred)
-        Y = np.vstack(Y)
+        YS_pred = torch.vstack(YS_pred)
+        Y = torch.vstack(Y)
     return l_sum / n, YS_pred, Y
 
 def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_gpu):
-    criterion = nn.L1Loss()
+    criterion = Metrics.MAE
     print('Model Testing', mode, 'Started ...')
     if P.train_encoder_on == 'cpu':
         device_encoder = device_cpu
@@ -630,25 +631,29 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     
     print('MODEL INFER DURATION:', e_time-m_time)
     print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
-    original_shape = np.squeeze(YS).shape
-    YS = scaler.inverse_transform(np.squeeze(YS).reshape(-1, YS.shape[2])).reshape(original_shape)
-    YS_pred  = scaler.inverse_transform(np.squeeze(YS_pred).reshape(-1, YS_pred.shape[2])).reshape(original_shape)
+    # original_shape = np.squeeze(YS).shape
+    # YS = scaler.inverse_transform(np.squeeze(YS).reshape(-1, YS.shape[2])).reshape(original_shape)
+    # YS_pred  = scaler.inverse_transform(np.squeeze(YS_pred).reshape(-1, YS_pred.shape[2])).reshape(original_shape)
+    # YS = scaler.inverse_transform(YS)
+    # YS_pred = scaler.inverse_transform(YS_pred)
     MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS, YS_pred)
+    MSE, RMSE, MAE, MAPE = MSE.cpu().numpy(), RMSE.cpu().numpy(), MAE.cpu().numpy(), MAPE.cpu().numpy()
     # Write the final results to the log file
     df = pd.read_csv('save/results.csv')
-    columns_to_update = [mode+'_loss', mode+'_MAE', 'encoder_infer_time', 'model_infer_time']
-    values_to_assign = [torch_score, MAE, m_time-s_time, e_time-m_time]
+    columns_to_update = [mode+'_loss', 'encoder_infer_time', 'model_infer_time']
+    values_to_assign = [MAE, m_time-s_time, e_time-m_time]
     df.loc[df['exe_id'] == P.exe_id, columns_to_update] = values_to_assign
     df.to_csv('save/results.csv', index=False) 
 
     print('*' * 40)
-    print("%s, %s, Torch MAE, %.10f" % (name, mode, torch_score))
+    # print("%s, %s, Torch MAE, %.10f" % (name, mode, torch_score))
     f = open(P.save_path + '/' + name + '_prediction_scores.txt', 'a')
-    f.write("%s, %s, Torch MAE, %.10f\n" % (name, mode, torch_score))
+    # f.write("%s, %s, Torch MAE, %.10f\n" % (name, mode, torch_score))
     print("all pred steps, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f" % (name, mode, MSE, RMSE, MAE, MAPE))
     f.write("all pred steps, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (name, mode, MSE, RMSE, MAE, MAPE))
     for i in range(P.timestep_out):
         MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS[:, i, :], YS_pred[:, i, :])
+        MSE, RMSE, MAE, MAPE = MSE.cpu().numpy(), RMSE.cpu().numpy(), MAE.cpu().numpy(), MAPE.cpu().numpy()
         print("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
         f.write("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
     f.close()

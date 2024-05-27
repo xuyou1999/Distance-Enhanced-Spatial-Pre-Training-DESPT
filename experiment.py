@@ -692,7 +692,6 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
                 print('\nThe shape of tst_encoder_input', tst_encoder_input.shape)
             tst_embed = encoder(tst_encoder_input, adj_tst, P.example_verbose).T.detach().to(device_gpu)
     adj_tst = [tensor.to(device_gpu) for tensor in adj_tst]
-    
     m_time = datetime.now()
     print('ENCODER INFER DURATION:', m_time-s_time)
 
@@ -718,15 +717,18 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     MSE, RMSE, MAE, MAPE = MSE.cpu().numpy(), RMSE.cpu().numpy(), MAE.cpu().numpy(), MAPE.cpu().numpy()
     # Write the final results to the log file
     df = pd.read_csv('save/results.csv')
-    columns_to_update = [mode+'_loss', 'encoder_infer_time', 'model_infer_time']
-    values_to_assign = [MAE, (m_time-s_time).total_seconds(), (e_time-m_time).total_seconds()]
+    columns_to_update = [mode+'_MAE', mode+'_MSE', mode+'_RMSE', mode+'_MAPE', 'encoder_infer_time', 'model_infer_time']
+    values_to_assign = [MAE, MSE, RMSE, MAPE, (m_time-s_time).total_seconds(), (e_time-m_time).total_seconds()]
     df.loc[df['exe_id'] == P.exe_id, columns_to_update] = values_to_assign
     df.to_csv('save/results.csv', index=False) 
     if P.is_mongo:
         doc = {
             "exe_id": P.exe_id,
             "finished": True,
-            mode+"_loss": float(f"{MAE:.10f}"),
+            mode+"_MAE": float(f"{MAE:.10f}"),
+            mode+"_MSE": float(f"{MSE:.10f}"),
+            mode+"_RMSE": float(f"{RMSE:.10f}"),
+            mode+"_MAPE": float(f"{MAPE:.10f}"),
             "encoder_infer_time": (m_time-s_time).total_seconds(),
             "model_infer_time": (e_time-m_time).total_seconds(),
         }

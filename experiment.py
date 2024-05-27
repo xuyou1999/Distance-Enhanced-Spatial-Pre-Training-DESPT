@@ -30,9 +30,10 @@ def connect_mongo():
     username = config['username']
     password = config['password']
     cluster_url = config['cluster_url']
+    db_name = config['db_name']
     connection_string = f"mongodb+srv://{username}:{password}@{cluster_url}/test?retryWrites=true&w=majority"
     client = MongoClient(connection_string)
-    db = client['experiment']
+    db = client[db_name]
     return db
 
 def save_parameters(param_obj, filename, mongodb):

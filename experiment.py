@@ -10,6 +10,8 @@ from encoder import *
 from augmentation import *
 from model import *
 import Metrics
+import json
+from pymongo import MongoClient, UpdateOne
 
 class StandardScaler:
     def __init__(self):
@@ -22,24 +24,41 @@ class StandardScaler:
     def inverse_transform(self, x):
         return x * self.z + self.u
 
-def save_parameters(param_obj, filename):
-    # Create a dictionary from the parameter object attributes
+def connect_mongo():
+    with open('config.json', 'r') as config_file:
+        config = json.load(config_file)
+    username = config['username']
+    password = config['password']
+    cluster_url = config['cluster_url']
+    connection_string = f"mongodb+srv://{username}:{password}@{cluster_url}/test?retryWrites=true&w=majority"
+    client = MongoClient(connection_string)
+    db = client['experiment']
+    return db
+
+def save_parameters(param_obj, filename, mongodb):
     data = {attr: [getattr(param_obj, attr)] for attr in dir(param_obj) if not attr.startswith("__") and not callable(getattr(param_obj, attr))}
-    # Ensure 'exe_id' is the first column if it exists
     column_order = ['exe_id'] + [col for col in data if col != 'exe_id']
-    # Create a DataFrame from the new data, specifying the column order
     new_row = pd.DataFrame(data, columns=column_order)
-    # Attempt to read the existing CSV file into a DataFrame. If it doesn't exist, create an empty DataFrame.
     try:
         df = pd.read_csv(filename)
     except FileNotFoundError:
-        df = pd.DataFrame(columns=column_order)  # Ensure 'exe_id' is the first column in an empty DataFrame
-    # Append the new data as a row to the DataFrame
+        df = pd.DataFrame(columns=column_order)
     df = pd.concat([df, new_row], ignore_index=True)
-    # Reorder columns before saving, to ensure 'exe_id' is the first column, especially if the CSV initially did not exist
     df = df[column_order]
-    # Save the updated DataFrame back to the CSV, ensuring all columns are included
     df.to_csv(filename, index=False)
+    if P.is_mongo:
+        data_db = {attr: getattr(param_obj, attr) for attr in dir(param_obj) if not attr.startswith("__") and not callable(getattr(param_obj, attr)) 
+                   and attr != 'exe_id'
+                   and attr != 'replication'
+                   and attr != 'track_id'}
+        doc = {
+                "exe_id": param_obj.exe_id,  # Ensure that param_obj has an exe_id att{attr: getattr(param_obj, attr) for attr in dir(param_obj) if not attr.startswith("__") and not callable(getattr(param_obj, attr)) and attr != 'exe_id'}ribute
+                "track_id": param_obj.track_id,
+                "replication": param_obj.replication,
+                "P": data_db
+            }
+
+        mongodb['test'].insert_one(doc)
 
 def getModel(name, device, support_len):
     if name == 'gwnet':
@@ -80,9 +99,6 @@ def setups(device):
     '''
     if not os.path.exists(P.save_path):
         os.makedirs(P.save_path)
-    '''
-    Set the seed to control the randomness of the experiment.
-    '''
     torch.manual_seed(P.seed)
     torch.cuda.manual_seed(P.seed)
     
@@ -226,7 +242,7 @@ def setups(device):
         train_iter, train_model_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a
 
-def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, spatialSplit_allNod):
+def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, spatialSplit_allNod, mongodb):
     print('\npretrainModel Started ...')
     adj_train = [tensor.to(device) for tensor in adj_train]
     adj_val = [tensor.to(device) for tensor in adj_val]
@@ -248,6 +264,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
     min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
     s_time = datetime.now()
+    encoder_log = []
     for epoch in range(P.pretrain_epoch):
         starttime = datetime.now()
         model.train()
@@ -304,14 +321,27 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
 
         # Time
         endtime = datetime.now()
-        epoch_time = (endtime - starttime).seconds
+        epoch_time = (endtime - starttime).total_seconds()
 
         # save epoch results
         print("epoch", epoch, "time used:", epoch_time," seconds ", "train loss:", train_loss, "validation loss:", val_loss)
         with open(P.save_path + '/' + name + '_log.txt', 'a') as f:
             f.write("%s %d, %s %d %s, %s %.10f, %s %.10f\n" % ("epoch:", epoch, "time used:", epoch_time, "seconds", "train loss:", train_loss, "validation loss:", val_loss))
+        if P.is_mongo:
+            train_loss_float = float(f"{train_loss:.10f}")
+            val_loss_float = float(f"{val_loss:.10f}")
+            doc = {
+                "exe_id": P.exe_id,
+                'track_id': P.track_id,
+                'replication': P.replication,
+                "epoch": epoch,
+                "time_used": epoch_time,
+                "train_loss": train_loss_float,
+                "val_loss": val_loss_float
+            }
+            encoder_log.append(doc)
     e_time = datetime.now()
-    print('PRETIME DURATION:', e_time-s_time)
+    print('PRETIME DURATION:', (e_time-s_time).total_seconds())
 
     # Write the final results to the log file
     try:
@@ -320,14 +350,31 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
         df = pd.DataFrame(columns=['exe_id', 'min_pretrain_val_loss', 'pretrain_time'])
     row_exists = 'exe_id' in df.columns and any(df['exe_id'] == P.exe_id)
     if row_exists:
-        df.loc[df['exe_id'] == P.exe_id, ['min_pretrain_val_loss', 'pretrain_time']] = [min_val_loss, e_time-s_time]
+        df.loc[df['exe_id'] == P.exe_id, ['min_pretrain_val_loss', 'pretrain_time']] = [min_val_loss, (e_time-s_time).total_seconds()]
     else:
-        new_row = pd.DataFrame({'exe_id': [P.exe_id], 'min_pretrain_val_loss': [min_val_loss.cpu().numpy()], 'pretrain_time': [e_time-s_time]})
+        new_row = pd.DataFrame({'exe_id': [P.exe_id], 'min_pretrain_val_loss': [min_val_loss.cpu().numpy()], 'pretrain_time': [(e_time-s_time).total_seconds()]})
         df = pd.concat([df, new_row], ignore_index=True)
     df.to_csv('save/results.csv', index=False)
-    # End
     
+    if P.is_mongo:
+        doc = {
+            "exe_id": P.exe_id,
+            "min_pretrain_val_loss": float(f"{min_val_loss:.10f}"),
+            "pretrain_time": (e_time-s_time).total_seconds(),
+        }
+        update_operation = UpdateOne(
+            {"exe_id": doc["exe_id"]},  # Search filter
+            {"$set": {
+                "min_pretrain_val_loss": doc["min_pretrain_val_loss"],
+                "pretrain_time": doc["pretrain_time"]
+            }},
+            upsert=True  # Insert the document if it does not exist
+        )
+        mongodb['test'].bulk_write([update_operation])
+
     print('pretrainModel Ended ...\n')
+
+    return encoder_log
 
 def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
     '''
@@ -353,7 +400,7 @@ def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
 def trainModel(name, mode, 
         train_iter, train_model_iter, val_u_iter, val_a_iter,
         adj_train, adj_val_u, adj_val_a,
-        spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu):
+        spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu, mongodb):
     print('\ntrainModel Started ...')
 
     # Set the device for the encoder
@@ -452,6 +499,7 @@ def trainModel(name, mode,
         print('\nFor verification purposes')
         print('The shape of model_input', model_input.dataset.tensors[0].shape)
     
+    model_log = []
     for epoch in range(P.train_epoch):
         starttime = datetime.now()     
         loss_sum, n = 0.0, 0
@@ -500,7 +548,7 @@ def trainModel(name, mode,
         else:
             tolerance += 1
         endtime = datetime.now()
-        epoch_time = (endtime - starttime).seconds
+        epoch_time = (endtime - starttime).total_seconds()
         print("epoch", epoch,
             "time used:",epoch_time," seconds ",
             "train loss:", train_loss,
@@ -511,10 +559,23 @@ def trainModel(name, mode,
                  "time used:",epoch_time," seconds ",
                  "train loss:", train_loss,
                  "validation all nodes loss:", val_a_loss))
+        if P.is_mongo:
+            train_loss_float = float(f"{train_loss:.10f}")
+            val_loss_float = float(f"{val_a_loss:.10f}")
+            doc = {
+                "exe_id": P.exe_id,
+                'track_id': P.track_id,
+                'replication': P.replication,
+                "epoch": epoch,
+                "time_used": epoch_time,
+                "train_loss": train_loss_float,
+                "val_loss": val_loss_float
+            }
+            model_log.append(doc)
         if tolerance >= P.tolerance:
             break
     e_time = datetime.now()
-    print('MODEL TRAINING DURATION:', e_time-m_time)
+    print('MODEL TRAINING DURATION:', (e_time-m_time).total_seconds())
     # Write the final results to the log file
     try:
         df = pd.read_csv('save/results.csv')
@@ -522,14 +583,32 @@ def trainModel(name, mode,
         df = pd.DataFrame(columns=['exe_id', 'min_pretrain_val_loss', 'pretrain_time'])
     row_exists = 'exe_id' in df.columns and any(df['exe_id'] == P.exe_id)
     if row_exists:
-        df.loc[df['exe_id'] == P.exe_id, ['train_loss', 'min_val_a_loss', 'train_time']] = [final_train_loss, min_val_a_loss, e_time-m_time]
+        df.loc[df['exe_id'] == P.exe_id, ['train_loss', 'min_val_a_loss', 'train_time']] = [final_train_loss, min_val_a_loss, (e_time-m_time).total_seconds()]
     else:
-        new_row = pd.DataFrame({'exe_id': [P.exe_id], 'train_loss': [final_train_loss], 'min_val_a_loss': [min_val_a_loss], 'train_time': [e_time-m_time]})
+        new_row = pd.DataFrame({'exe_id': [P.exe_id], 'train_loss': [final_train_loss], 'min_val_a_loss': [min_val_a_loss], 'train_time': [(e_time-m_time).total_seconds()]})
         df = pd.concat([df, new_row], ignore_index=True)
     df.to_csv('save/results.csv', index=False)
+    if P.is_mongo:
+        doc = {
+            "exe_id": P.exe_id,
+            "train_loss": float(f"{final_train_loss:.10f}"),
+            "min_val_a_loss": float(f"{min_val_a_loss:.10f}"),
+            "train_time": (e_time-m_time).total_seconds(),
+        }
+        update_operation = UpdateOne(
+            {"exe_id": doc["exe_id"]},  # Search filter
+            {"$set": {
+                "train_loss": doc["train_loss"],
+                "min_val_a_loss": doc["min_val_a_loss"],
+                "train_time": doc["train_time"]
+            }},
+            upsert=True  # Insert the document if it does not exist
+        )
+        mongodb['test'].bulk_write([update_operation])
     with open(P.save_path + '/' + name + '_prediction_scores.txt', 'a') as f:
         f.write("%s, %s, %s, %.10f\n" % (name, mode, 'MAE on train', final_train_loss))
     print('trainModel Ended ...\n')
+    return model_log
 
 def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start, test = False):
     YS_pred = []
@@ -566,7 +645,7 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
     else:
         return YS_pred, Y
 
-def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_gpu):
+def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_gpu, mongodb):
     criterion = Metrics.MAE
     print('Model Testing', mode, 'Started ...')
     if P.train_encoder_on == 'cpu':
@@ -632,38 +711,53 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     e_time = datetime.now()
     print('Model Infer End ...', e_time)
     
-    print('MODEL INFER DURATION:', e_time-m_time)
+    print('MODEL INFER DURATION:', (e_time-m_time).total_seconds())
     print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
-    # original_shape = np.squeeze(YS).shape
-    # YS = scaler.inverse_transform(np.squeeze(YS).reshape(-1, YS.shape[2])).reshape(original_shape)
-    # YS_pred  = scaler.inverse_transform(np.squeeze(YS_pred).reshape(-1, YS_pred.shape[2])).reshape(original_shape)
-    # YS = scaler.inverse_transform(YS)
-    # YS_pred = scaler.inverse_transform(YS_pred)
     MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS, YS_pred)
     MSE, RMSE, MAE, MAPE = MSE.cpu().numpy(), RMSE.cpu().numpy(), MAE.cpu().numpy(), MAPE.cpu().numpy()
     # Write the final results to the log file
     df = pd.read_csv('save/results.csv')
     columns_to_update = [mode+'_loss', 'encoder_infer_time', 'model_infer_time']
-    values_to_assign = [MAE, m_time-s_time, e_time-m_time]
+    values_to_assign = [MAE, (m_time-s_time).total_seconds(), (e_time-m_time).total_seconds()]
     df.loc[df['exe_id'] == P.exe_id, columns_to_update] = values_to_assign
     df.to_csv('save/results.csv', index=False) 
+    if P.is_mongo:
+        doc = {
+            "exe_id": P.exe_id,
+            "finished": True,
+            mode+"_loss": float(f"{MAE:.10f}"),
+            "encoder_infer_time": (m_time-s_time).total_seconds(),
+            "model_infer_time": (e_time-m_time).total_seconds(),
+        }
 
     print('*' * 40)
-    # print("%s, %s, Torch MAE, %.10f" % (name, mode, torch_score))
     f = open(P.save_path + '/' + name + '_prediction_scores.txt', 'a')
-    # f.write("%s, %s, Torch MAE, %.10f\n" % (name, mode, torch_score))
     print("all pred steps, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f" % (name, mode, MSE, RMSE, MAE, MAPE))
     f.write("all pred steps, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (name, mode, MSE, RMSE, MAE, MAPE))
     for i in range(P.timestep_out):
         MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS[:, i, :], YS_pred[:, i, :])
         MSE, RMSE, MAE, MAPE = MSE.cpu().numpy(), RMSE.cpu().numpy(), MAE.cpu().numpy(), MAPE.cpu().numpy()
         df = pd.read_csv('save/results.csv')
-        columns_to_update = [mode+'_step_'+str(i+1)]
-        values_to_assign = [MAE]
+        columns_to_update = [mode+'_step_'+str(i+1)+'_MAE', mode+'_step_'+str(i+1)+'_MSE', mode+'_step_'+str(i+1)+'_RMSE', mode+'_step_'+str(i+1)+'_MAPE']
+        values_to_assign = [MAE, MSE, RMSE, MAPE]
         df.loc[df['exe_id'] == P.exe_id, columns_to_update] = values_to_assign
         df.to_csv('save/results.csv', index=False)
         print("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
         f.write("%d step, %s, %s, MSE, RMSE, MAE, MAPE, %.10f, %.10f, %.10f, %.10f\n" % (i+1, name, mode, MSE, RMSE, MAE, MAPE))
+        if P.is_mongo:
+            nested_obj = {
+                "MAE": float(f"{MAE:.10f}"),
+                "MSE": float(f"{MSE:.10f}"),
+                "RMSE": float(f"{RMSE:.10f}"),
+                "MAPE": float(f"{MAPE:.10f}")
+            }
+            doc['step_'+str(i+1)] = nested_obj
+    update_operation = UpdateOne(
+        {"exe_id": doc["exe_id"]},  # Search filter
+        {"$set": doc},
+        upsert=True  # Insert the document if it does not exist
+    )
+    mongodb['test'].bulk_write([update_operation])
     f.close()
     print('Model Testing Ended ...', time.ctime())
 
@@ -673,6 +767,8 @@ P = type('Parameters', (object,), {})()
 P.dataname = 'METRLA'
 P.model = 'LSTM'
 P.pre_model = 'TCN'
+P.track_id = 0
+P.replication = 1
 P.seed = 0
 
 P.t_train = 0.7
@@ -721,6 +817,7 @@ P.is_testunseen = True
 P.train_model_datasplit = 'B'
 P.train_encoder_on = 'cpu'
 
+P.is_mongo = True
 P.example_verbose = True
 '''
 
@@ -753,7 +850,7 @@ def main():
     device_cpu = torch.device('cpu')
 
     # load data from file
-    P.exe_id = P.dataname + '_' + datetime.now().strftime("%y%m%d-%H%M")
+    P.exe_id = P.dataname + '_' + P.model + '_' + P.pre_model + '_' + datetime.now().strftime("%y%m%d-%H%M")
     P.save_path = 'save/' + P.exe_id
     if P.dataname == 'METRLA':
         print('P.dataname == METRLA')
@@ -811,6 +908,11 @@ def main():
     Apply the scaler to the sensor readings. 
     The data is scaled based on the mean and standard deviation of the data.
     '''
+    if P.is_mongo:
+        mongodb = connect_mongo()
+    else:
+        mongodb = None
+
     scaler = StandardScaler()
     data = scaler.fit_transform(data)
     P.data_mean = scaler.u
@@ -831,21 +933,25 @@ def main():
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups(device_gpu)
     
     # save parameters
-    save_parameters(P, 'save/parameters.csv')
+    save_parameters(P, 'save/parameters.csv', mongodb)
     
     if P.is_pretrain:
         if P.train_encoder_on == 'cpu':
-            pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_cpu, spatialSplit_allNod)
+            encoder_log = pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_cpu, spatialSplit_allNod, mongodb)
         else:
-            pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_gpu, spatialSplit_allNod)
+            encoder_log = pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_gpu, spatialSplit_allNod, mongodb)
 
-    trainModel(P.model, 'train',
+    model_log = trainModel(P.model, 'train',
         train_iter, train_model_iter, val_u_iter, val_a_iter,
         adj_train, adj_val_u, adj_val_a,
-        spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu)
+        spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
     
-    testModel(P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device_cpu, device_gpu)
+    testModel(P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
 
+    if P.is_mongo:
+        mongodb['encoder_log'].insert_many(encoder_log)
+        mongodb['model_log'].insert_many(model_log)
+        mongodb.client.close()
 
 if __name__ == '__main__':
     main()

@@ -58,7 +58,7 @@ def save_parameters(param_obj, filename, mongodb):
                 "P": data_db
             }
 
-        mongodb['test'].insert_one(doc)
+        mongodb['performance'].insert_one(doc)
 
 def getModel(name, device, support_len):
     if name == 'gwnet':
@@ -370,7 +370,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
             }},
             upsert=True  # Insert the document if it does not exist
         )
-        mongodb['test'].bulk_write([update_operation])
+        mongodb['performance'].bulk_write([update_operation])
 
     print('pretrainModel Ended ...\n')
 
@@ -604,7 +604,7 @@ def trainModel(name, mode,
             }},
             upsert=True  # Insert the document if it does not exist
         )
-        mongodb['test'].bulk_write([update_operation])
+        mongodb['performance'].bulk_write([update_operation])
     with open(P.save_path + '/' + name + '_prediction_scores.txt', 'a') as f:
         f.write("%s, %s, %s, %.10f\n" % (name, mode, 'MAE on train', final_train_loss))
     print('trainModel Ended ...\n')
@@ -757,7 +757,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
         {"$set": doc},
         upsert=True  # Insert the document if it does not exist
     )
-    mongodb['test'].bulk_write([update_operation])
+    mongodb['performance'].bulk_write([update_operation])
     f.close()
     print('Model Testing Ended ...', time.ctime())
 

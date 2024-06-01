@@ -967,13 +967,15 @@ def main():
             testModel(P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
 
         if P.is_mongo:
-            encoder_logs.extend(encoder_log)
+            if P.is_pretrain:
+                encoder_logs.extend(encoder_log)
             model_logs.extend(model_log)
         
         P.fold_i += 1
     
     if P.is_mongo:
-        mongodb['encoder_log'].insert_many(encoder_logs)
+        if P.is_pretrain:
+            mongodb['encoder_log'].insert_many(encoder_logs)
         mongodb['model_log'].insert_many(model_logs)
         mongodb.client.close()
 

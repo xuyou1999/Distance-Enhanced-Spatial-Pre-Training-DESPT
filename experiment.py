@@ -863,52 +863,52 @@ def main():
     # P.save_path = 'save/' + P.exe_id
     if P.dataname == 'METRLA':
         print('P.dataname == METRLA')
-        P.data_path = './data/METRLA/metr-la.h5'
+        data_path = './data/METRLA/metr-la.h5'
         if P.adj_method == 0:
             P.adj_path = './data/METRLA/adj_mx.pkl'
         elif P.adj_method == 1:
             P.adj_path = './data/METRLA/adj_mx_new1.pkl'
         P.n_sensor = 207
-        data = pd.read_hdf(P.data_path).values
+        data = pd.read_hdf(data_path).values
     elif P.dataname == 'PEMSBAY':
         print('P.dataname == PEMSBAY')
-        P.data_path = './data/PEMSBAY/pems-bay.h5'
+        data_path = './data/PEMSBAY/pems-bay.h5'
         if P.adj_method == 0:
             P.adj_path = './data/PEMSBAY/adj_mx.pkl'
         elif P.adj_method == 1:
             P.adj_path = './data/PEMSBAY/adj_mx_new1.pkl'
         P.n_sensor = 325
-        data = pd.read_hdf(P.data_path).values
+        data = pd.read_hdf(data_path).values
     elif P.dataname == 'HAGUE_FULL':
         print('P.dataname == HAGUE_FULL')
-        P.data_path = './data/Hauge/hague_filled.h5'
+        data_path = './data/Hauge/hague_filled.h5'
         if P.adj_method == 1:
             P.adj_path = './data/Hauge/adj_mx1.pkl'
         P.n_sensor = 144
-        data = pd.read_hdf(P.data_path).values
+        data = pd.read_hdf(data_path).values
     elif P.dataname == 'HAGUE':
         print('P.dataname == HAGUE')
-        P.data_path = './data/Hauge/hague_comp_filled.h5'
+        data_path = './data/Hauge/hague_comp_filled.h5'
         if P.adj_method == 1:
             P.adj_path = './data/Hauge/adj_mx_comp1.pkl'
         if P.adj_method == 2:
             P.adj_path = './data/Hauge/adj_mx_comp2.pkl'
         P.n_sensor = 144
-        data = pd.read_hdf(P.data_path).values
+        data = pd.read_hdf(data_path).values
     elif P.dataname == 'HAGUE_FULL_75':
         print('P.dataname == HAGUE_FULL_75')
-        P.data_path = './data/Hauge/hague_filled_75.h5'
+        data_path = './data/Hauge/hague_filled_75.h5'
         if P.adj_method == 1:
             P.adj_path = './data/Hauge/adj_mx1.pkl'
         P.n_sensor = 144
-        data = pd.read_hdf(P.data_path).values
+        data = pd.read_hdf(data_path).values
     elif P.dataname == 'EXAMPLE':
         print('P.dataname == EXAMPLE')
-        P.data_path = './data/example.h5'
+        data_path = './data/example.h5'
         if P.adj_method == 1:
             P.adj_path = './data/adj_mx_ex1.pkl'
         P.n_sensor = 20
-        data = pd.read_hdf(P.data_path).values
+        data = pd.read_hdf(data_path).values
         if P.example_verbose:
             print('\nFirst row at 10 am:', data[0])
             print('\nSecond row at 10:05:', data[1])

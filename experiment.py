@@ -51,11 +51,13 @@ def save_parameters(param_obj, filename, mongodb):
         data_db = {attr: getattr(param_obj, attr) for attr in dir(param_obj) if not attr.startswith("__") and not callable(getattr(param_obj, attr)) 
                    and attr != 'exe_id'
                    and attr != 'replication'
-                   and attr != 'track_id'}
+                   and attr != 'track_id'
+                   and attr != 'fold_i'}
         doc = {
                 "exe_id": param_obj.exe_id,  # Ensure that param_obj has an exe_id att{attr: getattr(param_obj, attr) for attr in dir(param_obj) if not attr.startswith("__") and not callable(getattr(param_obj, attr)) and attr != 'exe_id'}ribute
                 "track_id": param_obj.track_id,
                 "replication": param_obj.replication,
+                "fold_i": param_obj.fold_i,
                 "P": data_db
             }
 
@@ -137,10 +139,11 @@ def setups(device):
     '''
     Get the sensor indexes for each spatial splited set.
     '''
-    spatialSplit_unseen = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.s_train, r_val=P.s_val, r_tst=(1-P.s_train-P.s_val), seed=P.seed)
-    spatialSplit_allNod = unseen_nodes.SpatialSplit(data.shape[1], r_trn=P.s_train, r_val=min(1.0,P.s_val+P.s_train), r_tst=1.0, seed=P.seed)
+    spatialSplit_unseen = unseen_nodes.SpatialSplit(data.shape[1], P.fold_i, r_trn=P.s_train, r_val=P.s_val, r_tst=(1-P.s_train-P.s_val), seed=P.seed)
+    spatialSplit_allNod = unseen_nodes.SpatialSplit(data.shape[1], P.fold_i, r_trn=P.s_train, r_val=min(1.0,P.s_val+P.s_train), r_tst=1.0, seed=P.seed)
     print('\nspatialSplit_unseen', spatialSplit_unseen)
     print('spatialSplit_allNod', spatialSplit_allNod)
+    print('spatialSplit_unseen.i_tst', spatialSplit_unseen.i_tst)
     if P.example_verbose:
         print('\nspatialSplit_unseen.i_trn', spatialSplit_unseen.i_trn)
         print('spatialSplit_unseen.i_val', spatialSplit_unseen.i_val)
@@ -778,6 +781,7 @@ P.t_train = 0.7
 P.t_val = 0.1
 P.s_train = 0.7
 P.s_val = 0.1
+P.fold = 2
 
 P.timestep_in = 12
 P.timestep_out = 12
@@ -822,6 +826,7 @@ P.train_encoder_on = 'cpu'
 
 P.is_mongo = True
 P.example_verbose = True
+P.is_tune = False
 '''
 
 def main():
@@ -839,7 +844,8 @@ def main():
         raise ValueError('GCN should be used only in one place')
     if P.is_layer_after_concat == True and P.is_concat_encoder_model == False:
         raise ValueError('Layer after concatenation requires concatenation')
-    
+    if P.fold * (1 - P.s_train - P.s_val) > 1:
+        raise ValueError('The number of sensors cannot meet this fold requirement')
 
     '''
     Set backend devices. 
@@ -853,8 +859,8 @@ def main():
     device_cpu = torch.device('cpu')
 
     # load data from file
-    P.exe_id = P.dataname + '_' + P.model + '_' + P.pre_model + '_' + datetime.now().strftime("%y%m%d-%H%M")
-    P.save_path = 'save/' + P.exe_id
+    # P.exe_id = P.dataname + '_' + P.model + '_' + P.pre_model + '_' + datetime.now().strftime("%y%m%d-%H%M")
+    # P.save_path = 'save/' + P.exe_id
     if P.dataname == 'METRLA':
         print('P.dataname == METRLA')
         P.data_path = './data/METRLA/metr-la.h5'
@@ -930,30 +936,43 @@ def main():
             print('\nFirst sensor data:', data[:,0])
             print('\nSecond sensor data:', data[:,1])
 
-    # setup
-    pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \
-        train_iter, train_model_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
-        adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups(device_gpu)
-    
-    # save parameters
-    save_parameters(P, 'save/parameters.csv', mongodb)
-    
-    if P.is_pretrain:
-        if P.train_encoder_on == 'cpu':
-            encoder_log = pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_cpu, spatialSplit_allNod, mongodb)
-        else:
-            encoder_log = pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_gpu, spatialSplit_allNod, mongodb)
+    P.fold_i = 0
+    encoder_logs = []
+    model_logs = []
+    for i in range(P.fold):
+        P.exe_id = P.dataname + '_' + P.model + '_' + P.pre_model + '_' + datetime.now().strftime("%y%m%d-%H%M")
+        P.save_path = 'save/' + P.exe_id
+        # setup
+        pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \
+            train_iter, train_model_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
+            adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups(device_gpu)
+        
+        # save parameters
+        save_parameters(P, 'save/parameters.csv', mongodb)
+        
+        if P.is_pretrain:
+            if P.train_encoder_on == 'cpu':
+                encoder_log = pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_cpu, spatialSplit_allNod, mongodb)
+            else:
+                encoder_log = pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_gpu, spatialSplit_allNod, mongodb)
 
-    model_log = trainModel(P.model, 'train',
-        train_iter, train_model_iter, val_u_iter, val_a_iter,
-        adj_train, adj_val_u, adj_val_a,
-        spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
-    
-    testModel(P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
+        model_log = trainModel(P.model, 'train',
+            train_iter, train_model_iter, val_u_iter, val_a_iter,
+            adj_train, adj_val_u, adj_val_a,
+            spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
+        
+        if P.is_tune == False:
+            testModel(P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
 
+        if P.is_mongo:
+            encoder_logs.extend(encoder_log)
+            model_logs.extend(model_log)
+        
+        P.fold_i += 1
+    
     if P.is_mongo:
-        mongodb['encoder_log'].insert_many(encoder_log)
-        mongodb['model_log'].insert_many(model_log)
+        mongodb['encoder_log'].insert_many(encoder_logs)
+        mongodb['model_log'].insert_many(model_logs)
         mongodb.client.close()
 
 if __name__ == '__main__':

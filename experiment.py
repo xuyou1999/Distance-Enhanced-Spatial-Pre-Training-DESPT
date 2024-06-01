@@ -846,6 +846,8 @@ def main():
         raise ValueError('Layer after concatenation requires concatenation')
     if P.fold * (1 - P.s_train - P.s_val) > 1:
         raise ValueError('The number of sensors cannot meet this fold requirement')
+    if P.is_layer_after_concat and P.gwnet_is_SGA:
+        raise ValueError('Layer after concatenation requires no SGA')
 
     '''
     Set backend devices. 

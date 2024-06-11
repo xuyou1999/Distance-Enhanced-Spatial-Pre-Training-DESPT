@@ -36,7 +36,7 @@ def connect_mongo():
     db = client[db_name]
     return db
 
-def save_parameters(param_obj, filename, mongodb):
+def save_parameters(P, param_obj, filename, mongodb):
     data = {attr: [getattr(param_obj, attr)] for attr in dir(param_obj) if not attr.startswith("__") and not callable(getattr(param_obj, attr))}
     column_order = ['exe_id'] + [col for col in data if col != 'exe_id']
     new_row = pd.DataFrame(data, columns=column_order)
@@ -63,7 +63,7 @@ def save_parameters(param_obj, filename, mongodb):
 
         mongodb['performance'].insert_one(doc)
 
-def getModel(name, device, support_len):
+def getModel(P, name, device, support_len):
     if name == 'gwnet':
         model = gwnet(device, num_nodes=P.n_sensor, in_dim=P.n_channel, adp_adj=P.gwnet_is_adp_adj, sga=P.gwnet_is_SGA, support_len=support_len, is_concat=P.is_concat_encoder_model, is_layer_after_concat=P.is_layer_after_concat).to(device)
     elif name == 'LSTM':
@@ -78,7 +78,7 @@ def getModel(name, device, support_len):
         model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, output_dim=12, layer_dim = P.lstm_layers, dropout_prob = P.lstm_dropout, device=device, is_GCN_after_CL = P.is_GCN_after_CL, support_len = support_len, gcn_order=P.gcn_order, gcn_dropout=P.gcn_dropout).to(device)
     return model
 
-def getXSYS(data, mode):
+def getXSYS(P, data, mode):
     TRAIN_NUM = int(data.shape[0] * (P.t_train + P.t_val))
     XS, YS = [], []
     if mode == 'TRAIN':    
@@ -96,7 +96,7 @@ def getXSYS(data, mode):
     XS = XS.transpose(0, 3, 2, 1)
     return XS, YS
 
-def setups(device):
+def setups(P, device):
     '''
     If the save folder does not exist, create it.
     '''
@@ -110,8 +110,8 @@ def setups(device):
     At this step, training set contains both training and validation data.
     So that each each dimension correspond to [instance, input, sensor, output]
     '''
-    trainXS, trainYS = getXSYS(data, 'TRAIN')
-    testXS, testYS = getXSYS(data, 'TEST')
+    trainXS, trainYS = getXSYS(P, data, 'TRAIN')
+    testXS, testYS = getXSYS(P, data, 'TEST')
 
     print('\ntrainXS.shape', trainXS.shape)
     print('trainYS.shape', trainYS.shape)
@@ -246,7 +246,7 @@ def setups(device):
         train_iter, train_model_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
         adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a
 
-def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, spatialSplit_allNod, mongodb):
+def pretrainModel(P, name, pretrain_iter, preval_iter, adj_train, adj_val, device, spatialSplit_allNod, mongodb):
     print('\npretrainModel Started ...')
     adj_train = [tensor.to(device) for tensor in adj_train]
     adj_val = [tensor.to(device) for tensor in adj_val]
@@ -318,7 +318,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
             print('\nThe validation for encoder starts at index', sensor_idx_start)
 
         # Validation
-        val_loss = pre_evaluateModel(model, preval_iter, adj_val, sensor_idx_start, device)
+        val_loss = pre_evaluateModel(P, model, preval_iter, adj_val, sensor_idx_start, device)
         if val_loss < min_val_loss:
             min_val_loss = val_loss
             torch.save(model.state_dict(), P.save_path + '/' + name + '.pt')
@@ -380,7 +380,7 @@ def pretrainModel(name, pretrain_iter, preval_iter, adj_train, adj_val, device, 
 
     return encoder_log
 
-def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
+def pre_evaluateModel(P, model, data_iter, adj, sensor_idx_start, device):
     '''
     Calculate the loss for the validation set
     Execute the encoder for the full length of the data
@@ -401,7 +401,7 @@ def pre_evaluateModel(model, data_iter, adj, sensor_idx_start, device):
             l = model.contrast(input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device),input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device), adj, adj, sensor_idx_start, P.example_verbose)
         return l
 
-def trainModel(name, mode, 
+def trainModel(P, name, mode, 
         train_iter, train_model_iter, val_u_iter, val_a_iter,
         adj_train, adj_val_u, adj_val_a,
         spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu, mongodb):
@@ -418,7 +418,7 @@ def trainModel(name, mode,
     else:
         is_sampler = False
 
-    model = getModel(name, device_gpu, len(adj_train)) # Prediction model
+    model = getModel(P, name, device_gpu, len(adj_train)) # Prediction model
 
     # training settings
     min_val_u_loss = np.inf
@@ -543,7 +543,7 @@ def trainModel(name, mode,
         if P.example_verbose:
             print('\nThe validation for model training starts at index', sensor_idx_start)
         # Calculate the loss for the validation set, and save the optimal model
-        val_a_loss, Y_pred, Y = evaluateModel(model, criterion, val_a_iter, adj_val_a, val_a_embed, device_gpu, sensor_idx_start)
+        val_a_loss, Y_pred, Y = evaluateModel(P, model, criterion, val_a_iter, adj_val_a, val_a_embed, device_gpu, sensor_idx_start)
         if val_a_loss < min_val_a_loss:
             min_val_a_loss = val_a_loss
             final_train_loss = train_loss
@@ -614,7 +614,7 @@ def trainModel(name, mode,
     print('trainModel Ended ...\n')
     return model_log
 
-def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_start, test = False):
+def evaluateModel(P, model, criterion, data_iter, adj, embed, device, sensor_idx_start, test = False):
     YS_pred = []
     Y = []
     model.eval()
@@ -649,7 +649,7 @@ def evaluateModel(model, criterion, data_iter, adj, embed, device, sensor_idx_st
     else:
         return YS_pred, Y
 
-def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_gpu, mongodb):
+def testModel(P, name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_gpu, mongodb):
     criterion = Metrics.MAE
     print('Model Testing', mode, 'Started ...')
     if P.train_encoder_on == 'cpu':
@@ -669,7 +669,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
             encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst), P.gcn_order, P.gcn_dropout).to(device_encoder)
         encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
         encoder.eval()
-    model = getModel(name, device_gpu, len(adj_tst))
+    model = getModel(P, name, device_gpu, len(adj_tst))
     model.load_state_dict(torch.load(P.save_path+ '/' + name +mode[-2:]+ '.pt'))
     s_time = datetime.now()
     
@@ -710,7 +710,7 @@ def testModel(name, mode, test_iter, adj_tst, spatialsplit, device_cpu, device_g
     Prediction is on all sensors
     But the loss is calculated only for the sensors after sensor_idx_start
     '''
-    YS_pred, YS = evaluateModel(model, criterion, test_iter, adj_tst, tst_embed, device_gpu, sensor_idx_start, test = True)
+    YS_pred, YS = evaluateModel(P, model, criterion, test_iter, adj_tst, tst_embed, device_gpu, sensor_idx_start, test = True)
     e_time = datetime.now()
     print('Model Infer End ...', e_time)
     
@@ -829,7 +829,7 @@ P.example_verbose = True
 P.is_tune = False
 '''
 
-def main():
+def main(P):
     global data
     global scaler
 
@@ -947,24 +947,24 @@ def main():
         # setup
         pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \
             train_iter, train_model_iter, val_u_iter, val_a_iter, tst_u_iter, tst_a_iter, \
-            adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups(device_gpu)
+            adj_train, adj_val_u, adj_val_a, adj_tst_u, adj_tst_a = setups(P, device_gpu)
         
         # save parameters
-        save_parameters(P, 'save/parameters.csv', mongodb)
+        save_parameters(P, P, 'save/parameters.csv', mongodb)
         
         if P.is_pretrain:
             if P.train_encoder_on == 'cpu':
-                encoder_log = pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_cpu, spatialSplit_allNod, mongodb)
+                encoder_log = pretrainModel(P, 'encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_cpu, spatialSplit_allNod, mongodb)
             else:
-                encoder_log = pretrainModel('encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_gpu, spatialSplit_allNod, mongodb)
+                encoder_log = pretrainModel(P, 'encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_gpu, spatialSplit_allNod, mongodb)
 
-        model_log = trainModel(P.model, 'train',
+        model_log = trainModel(P, P.model, 'train',
             train_iter, train_model_iter, val_u_iter, val_a_iter,
             adj_train, adj_val_u, adj_val_a,
             spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
         
         if P.is_tune == False:
-            testModel(P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
+            testModel(P, P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
 
         if P.is_mongo:
             if P.is_pretrain:
@@ -980,7 +980,6 @@ def main():
         mongodb.client.close()
 
 if __name__ == '__main__':
-    main()
-    P = None
+    main(P)
 
     

@@ -758,12 +758,13 @@ def testModel(P, name, mode, test_iter, adj_tst, spatialsplit, device_cpu, devic
                 "MAPE": float(f"{MAPE:.10f}")
             }
             doc['step_'+str(i+1)] = nested_obj
-    update_operation = UpdateOne(
-        {"exe_id": doc["exe_id"]},  # Search filter
-        {"$set": doc},
-        upsert=True  # Insert the document if it does not exist
-    )
-    mongodb['performance'].bulk_write([update_operation])
+    if P.is_mongo:
+        update_operation = UpdateOne(
+            {"exe_id": doc["exe_id"]},  # Search filter
+            {"$set": doc},
+            upsert=True  # Insert the document if it does not exist
+        )
+        mongodb['performance'].bulk_write([update_operation])
     f.close()
     print('Model Testing Ended ...', time.ctime())
 

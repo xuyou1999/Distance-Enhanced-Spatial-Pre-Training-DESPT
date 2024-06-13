@@ -612,7 +612,7 @@ def trainModel(P, name, mode,
     with open(P.save_path + '/' + name + '_prediction_scores.txt', 'a') as f:
         f.write("%s, %s, %s, %.10f\n" % (name, mode, 'MAE on train', final_train_loss))
     print('trainModel Ended ...\n')
-    return model_log
+    return model_log, min_val_a_loss
 
 def evaluateModel(P, model, criterion, data_iter, adj, embed, device, sensor_idx_start, test = False):
     YS_pred = []
@@ -896,7 +896,7 @@ def main(P):
             P.adj_path = './data/Hauge/adj_mx_comp1.pkl'
         if P.adj_method == 2:
             P.adj_path = './data/Hauge/adj_mx_comp2.pkl'
-        P.n_sensor = 144
+        P.n_sensor = 89
         data = pd.read_hdf(data_path).values
     elif P.dataname == 'HAGUE_FULL_75':
         print('P.dataname == HAGUE_FULL_75')
@@ -942,6 +942,7 @@ def main(P):
     P.fold_i = 0
     encoder_logs = []
     model_logs = []
+    val_losses = []
     for i in range(P.fold):
         P.exe_id = P.dataname + '_' + P.model + '_' + P.pre_model + '_' + datetime.now().strftime("%y%m%d-%H%M")
         P.save_path = 'save/' + P.exe_id
@@ -959,11 +960,13 @@ def main(P):
             else:
                 encoder_log = pretrainModel(P, 'encoder', pretrn_iter, preval_iter, adj_train, adj_val_a, device_gpu, spatialSplit_allNod, mongodb)
 
-        model_log = trainModel(P, P.model, 'train',
+        model_log, min_val_loss = trainModel(P, P.model, 'train',
             train_iter, train_model_iter, val_u_iter, val_a_iter,
             adj_train, adj_val_u, adj_val_a,
             spatialSplit_unseen, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
         
+        val_losses.append(min_val_loss)
+
         if P.is_tune == False:
             testModel(P, P.model, 'test_a', tst_a_iter, adj_tst_a, spatialSplit_allNod, device_cpu, device_gpu, mongodb)
 
@@ -979,6 +982,8 @@ def main(P):
             mongodb['encoder_log'].insert_many(encoder_logs)
         mongodb['model_log'].insert_many(model_logs)
         mongodb.client.close()
+    
+    return sum(val_losses) / len(val_losses)
 
 if __name__ == '__main__':
     main(P)

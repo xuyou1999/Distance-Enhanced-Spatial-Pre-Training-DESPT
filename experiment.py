@@ -66,6 +66,8 @@ def save_parameters(P, param_obj, filename, mongodb):
 def getModel(P, name, device, support_len):
     if name == 'gwnet':
         model = gwnet(device, num_nodes=P.n_sensor, in_dim=P.n_channel, adp_adj=P.gwnet_is_adp_adj, sga=P.gwnet_is_SGA, support_len=support_len, is_concat=P.is_concat_encoder_model, is_layer_after_concat=P.is_layer_after_concat).to(device)
+        if P.gwnet_is_adp_adj == False:
+            model = nn.DataParallel(model)
     elif name == 'LSTM':
         if P.is_pretrain == False:
             lstm_input_dim = 32
@@ -76,6 +78,7 @@ def getModel(P, name, device, support_len):
         else:
             lstm_input_dim = 32
         model = LSTM_uni(input_dim=P.n_channel, lstm_input_dim=lstm_input_dim, hidden_dim=P.lstm_hidden_dim, output_dim=12, layer_dim = P.lstm_layers, dropout_prob = P.lstm_dropout, device=device, is_GCN_after_CL = P.is_GCN_after_CL, support_len = support_len, gcn_order=P.gcn_order, gcn_dropout=P.gcn_dropout).to(device)
+        model = nn.DataParallel(model)
     return model
 
 def getXSYS(P, data, mode):
@@ -262,8 +265,10 @@ def pretrainModel(P, name, pretrain_iter, preval_iter, adj_train, adj_val, devic
     # Get the encoder model
     if P.pre_model == 'COST':
         model = CoSTEncoder(1, 32, P.cost_kernals, 201, 64, 10, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device)
+        model = torch.nn.DataParallel(model)
     elif P.pre_model == 'TCN':
         model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device)
+        model = torch.nn.DataParallel(model)
     # Start pretraining
     min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)
@@ -279,29 +284,29 @@ def pretrainModel(P, name, pretrain_iter, preval_iter, adj_train, adj_val, devic
             print('x[0] for second sensor in original order', x[0][1,:])
         # Get the loss
         if P.augmentation == 'edge_masking':
-            loss = model.contrast(x[0].to(device), x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device), 0, P.example_verbose)
+            loss = model.module.contrast(x[0].to(device), x[0].to(device), edge_masking(adj_train, 0.02, device), edge_masking(adj_train, 0.02, device), 0, P.example_verbose)
         elif P.augmentation == 'sampler':
-            loss = model.contrast(x[0].to(device), x[0].to(device), adj_train, adj_train, 0, P.example_verbose)
+            loss = model.module.contrast(x[0].to(device), x[0].to(device), adj_train, adj_train, 0, P.example_verbose)
         elif P.augmentation == 'temporal_shifting':
             x1 = temporal_shifting(x[0], P.temporal_shifting_r).to(device)
             x2 = temporal_shifting(x[0], P.temporal_shifting_r).to(device)
             if P.example_verbose:
                 print('\nthe first augmentated input', x1[1,:])
                 print('the second augmentated input', x2[1,:])
-            loss = model.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
+            loss = model.module.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
         elif P.augmentation == 'temporal_shifting_new':
             x1 = temporal_shifting_new(x[0], P.temporal_shifting_r).to(device)
             x2 = temporal_shifting_new(x[0], P.temporal_shifting_r).to(device)
             if P.example_verbose:
                 print('\nthe first augmentated input, for fixed temporal shifting', x1[1,:])
                 print('the second augmentated input, for fixed temporal shifting', x2[1,:])
-            loss = model.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
+            loss = model.module.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
         elif P.augmentation == 'input_smoothing':
             x1 = input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device)
             x2 = input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device)
             if P.example_verbose:
                 print('\nAugmented input for input smoothing')
-            loss = model.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
+            loss = model.module.contrast(x1,x2, adj_train, adj_train, 0, P.example_verbose)
 
         # Backward and optimize
         optimizer.zero_grad()
@@ -390,15 +395,15 @@ def pre_evaluateModel(P, model, data_iter, adj, sensor_idx_start, device):
     with torch.no_grad():
         x = data_iter.dataset.tensors
         if P.augmentation == 'edge_masking':
-            l = model.contrast(x[0].to(device), x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device), sensor_idx_start, P.example_verbose)
+            l = model.module.contrast(x[0].to(device), x[0].to(device), edge_masking(adj, 0.02, device), edge_masking(adj, 0.02, device), sensor_idx_start, P.example_verbose)
         elif P.augmentation == 'sampler':
-            l = model.contrast(x[0].to(device), x[0].to(device), adj, adj, sensor_idx_start, P.example_verbose)
+            l = model.module.contrast(x[0].to(device), x[0].to(device), adj, adj, sensor_idx_start, P.example_verbose)
         elif P.augmentation == 'temporal_shifting':
-            l = model.contrast(temporal_shifting(x[0], P.temporal_shifting_r).to(device),temporal_shifting(x[0], P.temporal_shifting_r).to(device), adj, adj, sensor_idx_start, P.example_verbose)
+            l = model.module.contrast(temporal_shifting(x[0], P.temporal_shifting_r).to(device),temporal_shifting(x[0], P.temporal_shifting_r).to(device), adj, adj, sensor_idx_start, P.example_verbose)
         elif P.augmentation == 'temporal_shifting_new':
-            l = model.contrast(temporal_shifting_new(x[0], P.temporal_shifting_r).to(device),temporal_shifting_new(x[0], P.temporal_shifting_r).to(device), adj, adj, sensor_idx_start, P.example_verbose)
+            l = model.module.contrast(temporal_shifting_new(x[0], P.temporal_shifting_r).to(device),temporal_shifting_new(x[0], P.temporal_shifting_r).to(device), adj, adj, sensor_idx_start, P.example_verbose)
         elif P.augmentation == 'input_smoothing':
-            l = model.contrast(input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device),input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device), adj, adj, sensor_idx_start, P.example_verbose)
+            l = model.module.contrast(input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device),input_smoothing(x[0], P.input_smoothing_r, P.input_smoothing_e).to(device), adj, adj, sensor_idx_start, P.example_verbose)
         return l
 
 def trainModel(P, name, mode, 
@@ -443,8 +448,10 @@ def trainModel(P, name, mode,
     if P.is_pretrain:
         if P.pre_model == 'COST':
             encoder = CoSTEncoder(1, 32, P.cost_kernals, 201, 64, 10, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device_encoder)
+            encoder = nn.DataParallel(encoder)
         elif P.pre_model == 'TCN':
             encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device_encoder)
+            encoder = nn.DataParallel(encoder)
         encoder.eval()
         with torch.no_grad():
             encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))

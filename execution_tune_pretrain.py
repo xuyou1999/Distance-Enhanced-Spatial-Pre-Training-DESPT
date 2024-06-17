@@ -46,7 +46,7 @@ for value in temporal_shifting_r:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -120,7 +120,7 @@ for value in input_smoothing_r:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -194,7 +194,7 @@ for value in input_smoothing_e:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -268,7 +268,7 @@ for value in augmentation:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -343,7 +343,7 @@ for value in cl_temperature:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -418,7 +418,7 @@ for value in encoder_to_model_ratio:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -493,7 +493,7 @@ for value in gcn_order:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -568,7 +568,7 @@ for value in gcn_dropout:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -643,7 +643,7 @@ for value in adj_method:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -718,7 +718,7 @@ for value in adj_diag:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -793,7 +793,7 @@ for value in is_concat_encoder_model:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'
@@ -868,7 +868,7 @@ for value in is_always_augmentation:
         P.lstm_hidden_dim = 128
         P.lstm_layers = 2
         P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = False
+        P.gwnet_is_adp_adj = True
         P.gwnet_is_SGA = False
 
         P.adj_type = 'doubletransition'

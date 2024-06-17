@@ -66,8 +66,8 @@ def save_parameters(P, param_obj, filename, mongodb):
 def getModel(P, name, device, support_len):
     if name == 'gwnet':
         model = gwnet(device, num_nodes=P.n_sensor, in_dim=P.n_channel, adp_adj=P.gwnet_is_adp_adj, sga=P.gwnet_is_SGA, support_len=support_len, is_concat=P.is_concat_encoder_model, is_layer_after_concat=P.is_layer_after_concat).to(device)
-        if P.gwnet_is_adp_adj == False:
-            model = nn.DataParallel(model)
+        # if P.gwnet_is_adp_adj == False:
+        #     model = nn.DataParallel(model)
     elif name == 'LSTM':
         if P.is_pretrain == False:
             lstm_input_dim = 32

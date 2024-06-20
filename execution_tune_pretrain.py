@@ -2,9 +2,9 @@ import os
 import experiment
 
 # Tuning Pretrain wihtout GCN, for HAGUE dataset on GWNET model
-temporal_shifting_r = [0.6, 0.8, 1]
-input_smoothing_r = [0.8, 0.9, 1]
-input_smoothing_e = [10, 20, 30]
+temporal_shifting_r = [0.7, 0.8, 0.9, 0.95]
+input_smoothing_r = [0.7, 0.8, 0.9, 0.95]
+input_smoothing_e = [20, 40, 80, 150, 250, 400, 700, 1200, 2000]
 augmentation = ['input_smoothing', 'temporal_shifting']
 cl_temperature = [0.8, 1, 1.1, 1,2, 1,3, 1,5, 1,7, 2, 3]
 encoder_to_model_ratio = [0.4, 0.6, 0.8, 1, 1.2, 1.5, 2]
@@ -22,7 +22,7 @@ best_temporal_shifting_r = None
 min_loss = float('inf')
 for value in temporal_shifting_r:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -36,7 +36,7 @@ for value in temporal_shifting_r:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -96,7 +96,7 @@ best_input_smoothing_r = None
 min_loss = float('inf')
 for value in input_smoothing_r:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -110,7 +110,7 @@ for value in input_smoothing_r:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -170,7 +170,7 @@ best_input_smoothing_e = None
 min_loss = float('inf')
 for value in input_smoothing_e:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -184,7 +184,7 @@ for value in input_smoothing_e:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -244,7 +244,7 @@ best_augmentation = None
 min_loss = float('inf')
 for value in augmentation:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -258,7 +258,7 @@ for value in augmentation:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -319,7 +319,7 @@ best_cl_temperature = None
 min_loss = float('inf')
 for value in cl_temperature:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -333,7 +333,7 @@ for value in cl_temperature:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -394,7 +394,7 @@ best_encoder_to_model_ratio = None
 min_loss = float('inf')
 for value in encoder_to_model_ratio:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -408,7 +408,7 @@ for value in encoder_to_model_ratio:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -469,7 +469,7 @@ best_gcn_order = None
 min_loss = float('inf')
 for value in gcn_order:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -483,7 +483,7 @@ for value in gcn_order:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -544,7 +544,7 @@ best_gcn_dropout = None
 min_loss = float('inf')
 for value in gcn_dropout:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -558,7 +558,7 @@ for value in gcn_dropout:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -619,7 +619,7 @@ best_adj_method = None
 min_loss = float('inf')
 for value in adj_method:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -633,7 +633,7 @@ for value in adj_method:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -694,7 +694,7 @@ best_adj_diag = None
 min_loss = float('inf')
 for value in adj_diag:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -708,7 +708,7 @@ for value in adj_diag:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -769,7 +769,7 @@ best_is_concat_encoder_model = None
 min_loss = float('inf')
 for value in is_concat_encoder_model:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -783,7 +783,7 @@ for value in is_concat_encoder_model:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12
@@ -844,7 +844,7 @@ best_is_always_augmentation = None
 min_loss = float('inf')
 for value in is_always_augmentation:
     losses = []
-    for i in range(3):
+    for i in range(2):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -858,7 +858,7 @@ for value in is_always_augmentation:
         P.t_val = 0.3
         P.s_train = 0.7
         P.s_val = 0.1
-        P.fold = 1
+        P.fold = 4
 
         P.timestep_in = 12
         P.timestep_out = 12

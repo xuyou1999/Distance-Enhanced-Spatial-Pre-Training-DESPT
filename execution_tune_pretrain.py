@@ -22,7 +22,7 @@ best_temporal_shifting_r = None
 min_loss = float('inf')
 for value in temporal_shifting_r:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -96,7 +96,7 @@ best_input_smoothing_r = None
 min_loss = float('inf')
 for value in input_smoothing_r:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -170,7 +170,7 @@ best_input_smoothing_e = None
 min_loss = float('inf')
 for value in input_smoothing_e:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -244,7 +244,7 @@ best_augmentation = None
 min_loss = float('inf')
 for value in augmentation:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -319,7 +319,7 @@ best_cl_temperature = None
 min_loss = float('inf')
 for value in cl_temperature:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -394,7 +394,7 @@ best_encoder_to_model_ratio = None
 min_loss = float('inf')
 for value in encoder_to_model_ratio:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -469,7 +469,7 @@ best_gcn_order = None
 min_loss = float('inf')
 for value in gcn_order:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -544,7 +544,7 @@ best_gcn_dropout = None
 min_loss = float('inf')
 for value in gcn_dropout:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -619,7 +619,7 @@ best_adj_method = None
 min_loss = float('inf')
 for value in adj_method:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -694,7 +694,7 @@ best_adj_diag = None
 min_loss = float('inf')
 for value in adj_diag:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -769,7 +769,7 @@ best_is_concat_encoder_model = None
 min_loss = float('inf')
 for value in is_concat_encoder_model:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'
@@ -844,7 +844,7 @@ best_is_always_augmentation = None
 min_loss = float('inf')
 for value in is_always_augmentation:
     losses = []
-    for i in range(2):
+    for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
         P.dataname = 'HAGUE'

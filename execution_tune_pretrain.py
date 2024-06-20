@@ -4,7 +4,7 @@ import experiment
 # Tuning Pretrain wihtout GCN, for HAGUE dataset on GWNET model
 temporal_shifting_r = [0.7, 0.8, 0.9, 0.95]
 input_smoothing_r = [0.7, 0.8, 0.9, 0.95]
-input_smoothing_e = [20, 40, 80, 150, 250, 400, 700, 1200, 2000]
+input_smoothing_e = [20, 40, 80, 150, 250, 400, 700, 1200]
 augmentation = ['input_smoothing', 'temporal_shifting']
 cl_temperature = [0.8, 1, 1.1, 1,2, 1,3, 1,5, 1,7, 2, 3]
 encoder_to_model_ratio = [0.4, 0.6, 0.8, 1, 1.2, 1.5, 2]

@@ -672,8 +672,10 @@ def testModel(P, name, mode, test_iter, adj_tst, spatialsplit, device_cpu, devic
     if P.is_pretrain:
         if P.pre_model == 'COST':
             encoder = CoSTEncoder(1, 32, P.cost_kernals, 201, 64, 10, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst), P.gcn_order, P.gcn_dropout).to(device_encoder)
+            encoder = nn.DataParallel(encoder)
         elif P.pre_model == 'TCN':
             encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst), P.gcn_order, P.gcn_dropout).to(device_encoder)
+            encoder = nn.DataParallel(encoder)
         encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
         encoder.eval()
     model = getModel(P, name, device_gpu, len(adj_tst))

@@ -346,7 +346,7 @@ class CoSTEncoder(nn.Module):
         self.temperature = temperature
         self.fc1_trend = torch.nn.Linear(16*3, 16)
         self.fc1_season = torch.nn.Linear(16*3, 16)
-        self.fc2 = torch.nn.Linear(32, 32)
+        self.fc2 = torch.nn.Linear(16, 16)
         self.bn3_trend = torch.nn.BatchNorm1d(16*3)
         self.bn3_season = torch.nn.BatchNorm1d(16*3)
         self.bn4_trend = torch.nn.BatchNorm1d(16)
@@ -440,6 +440,8 @@ class CoSTEncoder(nn.Module):
         x2_trend = x2[:,:16]
         x2_season = x2[:,16:]
         # projection
+        print('x1_trend.shape', x1_trend.shape)
+        print('x1_season.shape', x1_season.shape)
         x1_trend = self.fc2(x1_trend)
         x1_season = self.fc2(x1_season)
         x2_trend = self.fc2(x2_trend)

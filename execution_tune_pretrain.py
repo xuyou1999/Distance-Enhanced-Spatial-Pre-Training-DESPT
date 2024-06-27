@@ -8,15 +8,15 @@ input_smoothing_e = [20, 40, 80, 150, 250, 400, 700, 1200]
 augmentation = ['input_smoothing', 'temporal_shifting']
 cl_temperature = [0.05, 0.1, 0.2, 0.4, 1, 2]
 encoder_to_model_ratio = [0.4, 0.6, 0.8, 1, 1.2, 1.5, 2]
-gcn_order = [1, 2]
-gcn_dropout = [0, 0.1, 0.2, 0.4]
-adj_method = [1, 2]
-adj_diag = [0, 1]
+# gcn_order = [1, 2]
+# gcn_dropout = [0, 0.1, 0.2, 0.4]
+# adj_method = [0, 1]
+# adj_diag = [0, 1]
 is_concat_encoder_model = [True, False]
 is_layer_after_concat = [True, False]
 is_always_augmentation = [True, False]
 
-track_id = 300
+track_id = 500
 
 # Temporal shifting ratio
 best_temporal_shifting_r = None
@@ -26,7 +26,7 @@ for value in temporal_shifting_r:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -59,7 +59,7 @@ for value in temporal_shifting_r:
         P.is_pretrain = True
         P.is_GCN_encoder = True
         P.is_GCN_after_CL = False
-        P.gcn_order = 2
+        P.gcn_order = 1
         P.gcn_dropout = 0
         P.augmentation = 'temporal_shifting'
         P.temporal_shifting_r = value
@@ -100,7 +100,7 @@ for value in input_smoothing_r:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -133,7 +133,7 @@ for value in input_smoothing_r:
         P.is_pretrain = True
         P.is_GCN_encoder = True
         P.is_GCN_after_CL = False
-        P.gcn_order = 2
+        P.gcn_order = 1
         P.gcn_dropout = 0
         P.augmentation = 'input_smoothing'
         P.temporal_shifting_r = best_temporal_shifting_r
@@ -174,7 +174,7 @@ for value in input_smoothing_e:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -207,7 +207,7 @@ for value in input_smoothing_e:
         P.is_pretrain = True
         P.is_GCN_encoder = True
         P.is_GCN_after_CL = False
-        P.gcn_order = 2
+        P.gcn_order = 1
         P.gcn_dropout = 0
         P.augmentation = 'input_smoothing'
         P.temporal_shifting_r = best_temporal_shifting_r
@@ -248,7 +248,7 @@ for value in augmentation:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -281,7 +281,7 @@ for value in augmentation:
         P.is_pretrain = True
         P.is_GCN_encoder = True
         P.is_GCN_after_CL = False
-        P.gcn_order = 2
+        P.gcn_order = 1
         P.gcn_dropout = 0
         P.augmentation = value
         P.temporal_shifting_r = best_temporal_shifting_r
@@ -323,7 +323,7 @@ for value in cl_temperature:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -356,7 +356,7 @@ for value in cl_temperature:
         P.is_pretrain = True
         P.is_GCN_encoder = True
         P.is_GCN_after_CL = False
-        P.gcn_order = 2
+        P.gcn_order = 1
         P.gcn_dropout = 0
         P.augmentation = best_augmentation
         P.temporal_shifting_r = best_temporal_shifting_r
@@ -398,7 +398,7 @@ for value in encoder_to_model_ratio:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -431,7 +431,7 @@ for value in encoder_to_model_ratio:
         P.is_pretrain = True
         P.is_GCN_encoder = True
         P.is_GCN_after_CL = False
-        P.gcn_order = 2
+        P.gcn_order = 1
         P.gcn_dropout = 0
         P.augmentation = best_augmentation
         P.temporal_shifting_r = best_temporal_shifting_r
@@ -465,6 +465,14 @@ for value in encoder_to_model_ratio:
     track_id += 1
 print('Best parameter encoder_to_model_ratio:', best_encoder_to_model_ratio)
 
+
+# buding
+best_gcn_order = 1
+best_gcn_dropout = 0
+best_adj_method = 1
+best_adj_diag = 0
+
+'''
 # GCN order
 best_gcn_order = None
 min_loss = float('inf')
@@ -473,7 +481,7 @@ for value in gcn_order:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -548,7 +556,7 @@ for value in gcn_dropout:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -623,7 +631,7 @@ for value in adj_method:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -698,7 +706,7 @@ for value in adj_diag:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -765,6 +773,8 @@ for value in adj_diag:
     track_id += 1
 print('Best parameter adj_diag:', best_adj_diag)
 
+'''
+
 # Concat encoder model
 best_is_concat_encoder_model = None
 min_loss = float('inf')
@@ -773,7 +783,7 @@ for value in is_concat_encoder_model:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -848,7 +858,7 @@ for value in is_layer_after_concat:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id
@@ -923,7 +933,7 @@ for value in is_always_augmentation:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE'
+        P.dataname = 'PEMSBAY'
         P.model = 'gwnet'
         P.pre_model = 'TCN'
         P.track_id = track_id

@@ -45,7 +45,7 @@ for i in range(5):
     P.input_smoothing_r = 0.9
     P.input_smoothing_e = 20
     P.encoder_to_model_ratio = 1
-    P.is_concat_encoder_model = True
+    P.is_concat_encoder_model = False
     P.is_layer_after_concat = False
     P.is_always_augmentation = True
 
@@ -234,7 +234,7 @@ for i in range(5):
     P.input_smoothing_r = 0.9
     P.input_smoothing_e = 20
     P.encoder_to_model_ratio = 1
-    P.is_concat_encoder_model = True
+    P.is_concat_encoder_model = False
     P.is_layer_after_concat = False
     P.is_always_augmentation = True
 

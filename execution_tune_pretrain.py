@@ -8,15 +8,15 @@ input_smoothing_e = [20, 40, 80, 150, 250, 400, 700, 1200]
 augmentation = ['input_smoothing', 'temporal_shifting']
 cl_temperature = [0.05, 0.1, 0.2, 0.4, 1, 2]
 encoder_to_model_ratio = [0.4, 0.6, 0.8, 1, 1.2, 1.5, 2]
-# gcn_order = [1, 2]
-# gcn_dropout = [0, 0.1, 0.2, 0.4]
-# adj_method = [0, 1]
-# adj_diag = [0, 1]
+gcn_order = [1, 2]
+gcn_dropout = [0, 0.1, 0.2, 0.4]
+adj_method = [0, 1]
+adj_diag = [0, 1]
 is_concat_encoder_model = [True, False]
 is_layer_after_concat = [True, False]
 is_always_augmentation = [True, False]
 
-track_id = 500
+track_id = 700
 
 # Temporal shifting ratio
 best_temporal_shifting_r = None
@@ -466,13 +466,12 @@ for value in encoder_to_model_ratio:
 print('Best parameter encoder_to_model_ratio:', best_encoder_to_model_ratio)
 
 
-# buding
-best_gcn_order = 1
-best_gcn_dropout = 0
-best_adj_method = 1
-best_adj_diag = 0
+# # buding
+# best_gcn_order = 1
+# best_gcn_dropout = 0
+# best_adj_method = 1
+# best_adj_diag = 0
 
-'''
 # GCN order
 best_gcn_order = None
 min_loss = float('inf')
@@ -772,8 +771,6 @@ for value in adj_diag:
         min_loss = final_loss
     track_id += 1
 print('Best parameter adj_diag:', best_adj_diag)
-
-'''
 
 # Concat encoder model
 best_is_concat_encoder_model = None

@@ -147,6 +147,13 @@ def setups(P, device):
     print('\nspatialSplit_unseen', spatialSplit_unseen)
     print('spatialSplit_allNod', spatialSplit_allNod)
     print('spatialSplit_unseen.i_tst', spatialSplit_unseen.i_tst)
+    # save the spatial split
+    with open(P.save_path + '/' + 'i_tst.txt', 'w') as f:
+        np.savetxt(f, spatialSplit_unseen.i_tst, fmt='%d')
+    with open(P.save_path + '/' + 'i_val.txt', 'w') as f:
+        np.savetxt(f, spatialSplit_unseen.i_val, fmt='%d')
+    with open(P.save_path + '/' + 'i_trn.txt', 'w') as f:
+        np.savetxt(f, spatialSplit_unseen.i_trn, fmt='%d')
     if P.example_verbose:
         print('\nspatialSplit_unseen.i_trn', spatialSplit_unseen.i_trn)
         print('spatialSplit_unseen.i_val', spatialSplit_unseen.i_val)
@@ -725,6 +732,10 @@ def testModel(P, name, mode, test_iter, adj_tst, spatialsplit, device_cpu, devic
     
     print('MODEL INFER DURATION:', (e_time-m_time).total_seconds())
     print('YS.shape, YS_pred.shape,', YS.shape, YS_pred.shape)
+    #  Save the results
+    torch.save(YS, P.save_path + '/' + 'YS.pt')
+    torch.save(YS_pred, P.save_path + '/' + 'YS_pred.pt')
+
     MSE, RMSE, MAE, MAPE = Metrics.evaluate(YS, YS_pred)
     MSE, RMSE, MAE, MAPE = MSE.cpu().numpy(), RMSE.cpu().numpy(), MAE.cpu().numpy(), MAPE.cpu().numpy()
     # Write the final results to the log file
@@ -953,7 +964,7 @@ def main(P):
     model_logs = []
     val_losses = []
     for i in range(P.fold):
-        P.exe_id = P.dataname + '_' + P.model + '_' + P.pre_model + '_' + datetime.now().strftime("%y%m%d-%H%M")
+        P.exe_id = str(P.track_id) + '_r' + str(P.replication) + '_f' + str(P.fold_i) + '_' + P.dataname + '_' + P.model + '_' + P.pre_model + '_' + datetime.now().strftime("%y%m%d-%H%M")
         P.save_path = 'save/' + P.exe_id
         # setup
         pretrn_iter, preval_iter, spatialSplit_unseen, spatialSplit_allNod, \

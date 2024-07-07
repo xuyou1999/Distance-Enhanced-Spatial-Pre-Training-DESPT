@@ -886,7 +886,7 @@ def main(P):
         print('P.dataname == PEMSBAY')
         data_path = './data/PEMSBAY/pems-bay.h5'
         if P.adj_method == 0:
-            P.adj_path = './data/PEMSBAY/adj_mx.pkl'
+            P.adj_path = './data/PEMSBAY/adj_bay.pkl'
         elif P.adj_method == 1:
             P.adj_path = './data/PEMSBAY/adj_mx_new1.pkl'
         P.n_sensor = 325

@@ -1,22 +1,23 @@
 import os
 import experiment
 
-# Tuning Pretrain wihtout GCN, for HAGUE dataset on GWNET model
 temporal_shifting_r = [0.7, 0.8, 0.9, 0.95]
 input_smoothing_r = [0.7, 0.8, 0.9, 0.95]
-input_smoothing_e = [20, 40, 80, 150, 250, 400, 700, 1200]
+input_smoothing_e = [10, 20, 40, 80, 150, 250, 400]
 augmentation = ['input_smoothing', 'temporal_shifting']
-cl_temperature = [0.05, 0.1, 0.2, 0.4, 1, 2]
+cost_kernals = [[1, 2, 4], [1, 2, 4, 8], [1, 2, 4, 8, 16]]
+cost_alpha = [0.3, 0.5, 0.7, 0.9, 1, 2]
+cl_temperature = [0.01, 0.05, 0.1, 0.5, 0.8, 1, 2]
 encoder_to_model_ratio = [0.4, 0.6, 0.8, 1, 1.2, 1.5, 2]
 gcn_order = [1, 2]
 gcn_dropout = [0, 0.1, 0.2, 0.4]
-adj_method = [0, 1]
+adj_method = [1, 2]
 adj_diag = [0, 1]
 is_concat_encoder_model = [True, False]
 is_layer_after_concat = [True, False]
 is_always_augmentation = [True, False]
 
-track_id = 700
+track_id = 900
 
 # Temporal shifting ratio
 best_temporal_shifting_r = None
@@ -26,9 +27,9 @@ for value in temporal_shifting_r:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -53,7 +54,7 @@ for value in temporal_shifting_r:
         P.adj_type = 'doubletransition'
         P.adj_method = 1
         P.adj_diag = 0
-        P.cost_kernals = [1, 2, 4, 8, 16]
+        P.cost_kernals = [1, 2, 4, 8]
         P.cost_alpha = 0.5
         P.cl_temperature = 1.4
         P.is_pretrain = True
@@ -79,7 +80,7 @@ for value in temporal_shifting_r:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
         # Execute the experiment script
@@ -100,9 +101,9 @@ for value in input_smoothing_r:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -127,7 +128,7 @@ for value in input_smoothing_r:
         P.adj_type = 'doubletransition'
         P.adj_method = 1
         P.adj_diag = 0
-        P.cost_kernals = [1, 2, 4, 8, 16]
+        P.cost_kernals = [1, 2, 4, 8]
         P.cost_alpha = 0.5
         P.cl_temperature = 1.4
         P.is_pretrain = True
@@ -153,7 +154,7 @@ for value in input_smoothing_r:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
         # Execute the experiment script
@@ -174,9 +175,9 @@ for value in input_smoothing_e:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -201,7 +202,7 @@ for value in input_smoothing_e:
         P.adj_type = 'doubletransition'
         P.adj_method = 1
         P.adj_diag = 0
-        P.cost_kernals = [1, 2, 4, 8, 16]
+        P.cost_kernals = [1, 2, 4, 8]
         P.cost_alpha = 0.5
         P.cl_temperature = 1.4
         P.is_pretrain = True
@@ -227,7 +228,7 @@ for value in input_smoothing_e:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
         # Execute the experiment script
@@ -248,9 +249,9 @@ for value in augmentation:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -275,7 +276,7 @@ for value in augmentation:
         P.adj_type = 'doubletransition'
         P.adj_method = 1
         P.adj_diag = 0
-        P.cost_kernals = [1, 2, 4, 8, 16]
+        P.cost_kernals = [1, 2, 4, 8]
         P.cost_alpha = 0.5
         P.cl_temperature = 1.4
         P.is_pretrain = True
@@ -301,7 +302,7 @@ for value in augmentation:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
 
@@ -315,17 +316,18 @@ for value in augmentation:
     track_id += 1
 print('Best parameter augmentation:', best_augmentation)
 
-# CL temperature
-best_cl_temperature = None
+
+# Cost kernals
+best_cost_kernals = None
 min_loss = float('inf')
-for value in cl_temperature:
+for value in cost_kernals:
     losses = []
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -350,8 +352,158 @@ for value in cl_temperature:
         P.adj_type = 'doubletransition'
         P.adj_method = 1
         P.adj_diag = 0
-        P.cost_kernals = [1, 2, 4, 8, 16]
+        P.cost_kernals = value
         P.cost_alpha = 0.5
+        P.cl_temperature = 1.4
+        P.is_pretrain = True
+        P.is_GCN_encoder = True
+        P.is_GCN_after_CL = False
+        P.gcn_order = 1
+        P.gcn_dropout = 0
+        P.augmentation = best_augmentation
+        P.temporal_shifting_r = best_temporal_shifting_r
+        P.input_smoothing_r = best_input_smoothing_r
+        P.input_smoothing_e = best_input_smoothing_e
+        P.encoder_to_model_ratio = 1
+        P.is_concat_encoder_model = True
+        P.is_layer_after_concat = False
+        P.is_always_augmentation = True
+
+        P.tolerance = 20
+        P.learn_rate = 0.001
+        P.pretrain_epoch = 100
+        P.train_epoch = 100
+        P.weight_decay = 0
+        P.is_testunseen = True
+        P.train_model_datasplit = 'B'
+        P.train_encoder_on = 'gpu'
+
+        P.is_mongo = False
+        P.example_verbose = False
+        P.is_tune = True
+        
+        # Execute the experiment script
+        val_loss = experiment.main(P)
+        losses.append(val_loss)
+    final_loss = sum(losses) / len(losses)
+    if final_loss < min_loss:
+        best_cost_kernals = value
+        min_loss = final_loss
+    track_id += 1
+print('Best parameter cost_kernals:', best_cost_kernals)
+
+# Cost alpha
+best_cost_alpha = None
+min_loss = float('inf')
+for value in cost_alpha:
+    losses = []
+    for i in range(1):
+        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+        P = type('Parameters', (object,), {})()
+        P.dataname = 'HAGUE'
+        P.model = 'gwnet'
+        P.pre_model = 'COST'
+        P.track_id = track_id
+        P.replication = i + 1
+        P.seed = 10
+
+        P.t_train = 0.4
+        P.t_val = 0.3
+        P.s_train = 0.7
+        P.s_val = 0.1
+        P.fold = 4
+
+        P.timestep_in = 12
+        P.timestep_out = 12
+        P.n_channel = 1
+        P.batch_size = 64
+
+        P.lstm_hidden_dim = 128
+        P.lstm_layers = 2
+        P.lstm_dropout = 0.2
+        P.gwnet_is_adp_adj = True
+        P.gwnet_is_SGA = False
+
+        P.adj_type = 'doubletransition'
+        P.adj_method = 1
+        P.adj_diag = 0
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = value
+        P.cl_temperature = 1.4
+        P.is_pretrain = True
+        P.is_GCN_encoder = True
+        P.is_GCN_after_CL = False
+        P.gcn_order = 1
+        P.gcn_dropout = 0
+        P.augmentation = best_augmentation
+        P.temporal_shifting_r = best_temporal_shifting_r
+        P.input_smoothing_r = best_input_smoothing_r
+        P.input_smoothing_e = best_input_smoothing_e
+        P.encoder_to_model_ratio = 1
+        P.is_concat_encoder_model = True
+        P.is_layer_after_concat = False
+        P.is_always_augmentation = True
+
+        P.tolerance = 20
+        P.learn_rate = 0.001
+        P.pretrain_epoch = 100
+        P.train_epoch = 100
+        P.weight_decay = 0
+        P.is_testunseen = True
+        P.train_model_datasplit = 'B'
+        P.train_encoder_on = 'gpu'
+
+        P.is_mongo = False
+        P.example_verbose = False
+        P.is_tune = True
+
+        # Execute the experiment script
+        val_loss = experiment.main(P)
+        losses.append(val_loss)
+    final_loss = sum(losses) / len(losses)
+    if final_loss < min_loss:
+        best_cost_alpha = value
+        min_loss = final_loss
+    track_id += 1
+print('Best parameter cost_alpha:', best_cost_alpha)
+
+# CL temperature
+best_cl_temperature = None
+min_loss = float('inf')
+for value in cl_temperature:
+    losses = []
+    for i in range(1):
+        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+        P = type('Parameters', (object,), {})()
+        P.dataname = 'HAGUE'
+        P.model = 'gwnet'
+        P.pre_model = 'COST'
+        P.track_id = track_id
+        P.replication = i + 1
+        P.seed = 10
+
+        P.t_train = 0.4
+        P.t_val = 0.3
+        P.s_train = 0.7
+        P.s_val = 0.1
+        P.fold = 4
+
+        P.timestep_in = 12
+        P.timestep_out = 12
+        P.n_channel = 1
+        P.batch_size = 64
+
+        P.lstm_hidden_dim = 128
+        P.lstm_layers = 2
+        P.lstm_dropout = 0.2
+        P.gwnet_is_adp_adj = True
+        P.gwnet_is_SGA = False
+
+        P.adj_type = 'doubletransition'
+        P.adj_method = 1
+        P.adj_diag = 0
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = best_cost_alpha
         P.cl_temperature = value
         P.is_pretrain = True
         P.is_GCN_encoder = True
@@ -376,7 +528,7 @@ for value in cl_temperature:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
         
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
 
@@ -398,9 +550,9 @@ for value in encoder_to_model_ratio:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -425,8 +577,8 @@ for value in encoder_to_model_ratio:
         P.adj_type = 'doubletransition'
         P.adj_method = 1
         P.adj_diag = 0
-        P.cost_kernals = [1, 2, 4, 8, 16]
-        P.cost_alpha = 0.5
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
         P.is_GCN_encoder = True
@@ -451,7 +603,7 @@ for value in encoder_to_model_ratio:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
 
@@ -472,6 +624,7 @@ print('Best parameter encoder_to_model_ratio:', best_encoder_to_model_ratio)
 # best_adj_method = 1
 # best_adj_diag = 0
 
+
 # GCN order
 best_gcn_order = None
 min_loss = float('inf')
@@ -480,9 +633,9 @@ for value in gcn_order:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -507,8 +660,8 @@ for value in gcn_order:
         P.adj_type = 'doubletransition'
         P.adj_method = 1
         P.adj_diag = 0
-        P.cost_kernals = [1, 2, 4, 8, 16]
-        P.cost_alpha = 0.5
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
         P.is_GCN_encoder = True
@@ -533,7 +686,7 @@ for value in gcn_order:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
 
@@ -555,9 +708,9 @@ for value in gcn_dropout:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -582,8 +735,8 @@ for value in gcn_dropout:
         P.adj_type = 'doubletransition'
         P.adj_method = 1
         P.adj_diag = 0
-        P.cost_kernals = [1, 2, 4, 8, 16]
-        P.cost_alpha = 0.5
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
         P.is_GCN_encoder = True
@@ -608,7 +761,7 @@ for value in gcn_dropout:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
 
@@ -630,9 +783,9 @@ for value in adj_method:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -657,8 +810,8 @@ for value in adj_method:
         P.adj_type = 'doubletransition'
         P.adj_method = value
         P.adj_diag = 0
-        P.cost_kernals = [1, 2, 4, 8, 16]
-        P.cost_alpha = 0.5
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
         P.is_GCN_encoder = True
@@ -683,7 +836,7 @@ for value in adj_method:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
         
@@ -705,9 +858,9 @@ for value in adj_diag:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -732,8 +885,8 @@ for value in adj_diag:
         P.adj_type = 'doubletransition'
         P.adj_method = best_adj_method
         P.adj_diag = value
-        P.cost_kernals = [1, 2, 4, 8, 16]
-        P.cost_alpha = 0.5
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
         P.is_GCN_encoder = True
@@ -758,7 +911,7 @@ for value in adj_diag:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
         
@@ -780,9 +933,9 @@ for value in is_concat_encoder_model:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -807,8 +960,8 @@ for value in is_concat_encoder_model:
         P.adj_type = 'doubletransition'
         P.adj_method = best_adj_method
         P.adj_diag = best_adj_diag
-        P.cost_kernals = [1, 2, 4, 8, 16]
-        P.cost_alpha = 0.5
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
         P.is_GCN_encoder = True
@@ -833,7 +986,7 @@ for value in is_concat_encoder_model:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
 
@@ -855,9 +1008,9 @@ for value in is_layer_after_concat:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -882,8 +1035,8 @@ for value in is_layer_after_concat:
         P.adj_type = 'doubletransition'
         P.adj_method = best_adj_method
         P.adj_diag = best_adj_diag
-        P.cost_kernals = [1, 2, 4, 8, 16]
-        P.cost_alpha = 0.5
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
         P.is_GCN_encoder = True
@@ -908,7 +1061,7 @@ for value in is_layer_after_concat:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
 
@@ -930,9 +1083,9 @@ for value in is_always_augmentation:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'PEMSBAY'
+        P.dataname = 'HAGUE'
         P.model = 'gwnet'
-        P.pre_model = 'TCN'
+        P.pre_model = 'COST'
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -957,8 +1110,8 @@ for value in is_always_augmentation:
         P.adj_type = 'doubletransition'
         P.adj_method = best_adj_method
         P.adj_diag = best_adj_diag
-        P.cost_kernals = [1, 2, 4, 8, 16]
-        P.cost_alpha = 0.5
+        P.cost_kernals = best_cost_kernals
+        P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
         P.is_GCN_encoder = True
@@ -983,7 +1136,7 @@ for value in is_always_augmentation:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = True
+        P.is_mongo = False
         P.example_verbose = False
         P.is_tune = True
         

@@ -11,7 +11,7 @@ cl_temperature = [0.01, 0.05, 0.1, 0.5, 0.8, 1, 2]
 encoder_to_model_ratio = [0.4, 0.6, 0.8, 1, 1.2, 1.5, 2]
 gcn_order = [1, 2]
 gcn_dropout = [0, 0.1, 0.2, 0.4]
-adj_method = [0, 1]
+adj_method = [1, 2]
 adj_diag = [0, 1]
 is_concat_encoder_model = [True, False]
 is_layer_after_concat = [True, False]
@@ -27,7 +27,7 @@ for value in temporal_shifting_r:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -101,7 +101,7 @@ for value in input_smoothing_r:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -175,7 +175,7 @@ for value in input_smoothing_e:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -249,7 +249,7 @@ for value in augmentation:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -325,7 +325,7 @@ for value in cost_kernals:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -400,7 +400,7 @@ for value in cost_alpha:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -475,7 +475,7 @@ for value in cl_temperature:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -550,7 +550,7 @@ for value in encoder_to_model_ratio:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -633,7 +633,7 @@ for value in gcn_order:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -708,7 +708,7 @@ for value in gcn_dropout:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -783,7 +783,7 @@ for value in adj_method:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -858,7 +858,7 @@ for value in adj_diag:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -934,7 +934,7 @@ for value in is_concat_encoder_model:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -1009,7 +1009,7 @@ for value in is_layer_after_concat:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id
@@ -1084,7 +1084,7 @@ for value in is_always_augmentation:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'METRLA'
+        P.dataname = 'HAGUE_25'
         P.model = 'gwnet'
         P.pre_model = 'COST'
         P.track_id = track_id

@@ -918,6 +918,15 @@ def main(P):
             P.adj_path = './data/Hauge/adj_mx_comp2.pkl'
         P.n_sensor = 89
         data = pd.read_hdf(data_path).values
+    elif P.dataname == 'HAGUE_25':
+        print('P.dataname == HAGUE_25')
+        data_path = './data/Hauge/hague_comp_filled_25.h5'
+        if P.adj_method == 1:
+            P.adj_path = './data/Hauge/adj_mx_comp1.pkl'
+        if P.adj_method == 2:
+            P.adj_path = './data/Hauge/adj_mx_comp2.pkl'
+        P.n_sensor = 89
+        data = pd.read_hdf(data_path).values
     elif P.dataname == 'HAGUE_FULL_75':
         print('P.dataname == HAGUE_FULL_75')
         data_path = './data/Hauge/hague_filled_75.h5'

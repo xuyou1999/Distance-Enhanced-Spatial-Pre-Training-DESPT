@@ -272,10 +272,10 @@ def pretrainModel(P, name, pretrain_iter, preval_iter, adj_train, adj_val, devic
     # Get the encoder model
     if P.pre_model == 'COST':
         model = CoSTEncoder(1, 32, P.cost_kernals, 201, 64, 10, P.cost_alpha, P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device)
-        model = torch.nn.DataParallel(model)
+        model = torch.nn.DataParallel(model).to(device)
     elif P.pre_model == 'TCN':
         model = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_train), P.gcn_order, P.gcn_dropout).to(device)
-        model = torch.nn.DataParallel(model)
+        model = torch.nn.DataParallel(model).to(device)
     # Start pretraining
     min_val_loss = np.inf
     optimizer = torch.optim.Adam(model.parameters(), lr=P.learn_rate, weight_decay=P.weight_decay)

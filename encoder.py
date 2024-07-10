@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint as checkpoint
 import math
 from typing import List
 import torch.fft as fft
@@ -224,13 +225,15 @@ class ConvBlock(nn.Module):
         self.projector = nn.Conv1d(in_channels, out_channels, 1) if in_channels != out_channels or final else None
     
     def forward(self, x):
-        residual = x if self.projector is None else self.projector(x)
-        x = F.gelu(x)
-        x = self.conv1(x)
-        x = F.gelu(x)
-        x = self.conv2(x)
-        return x + residual
-
+        def custom_forward(x):
+            residual = x if self.projector is None else self.projector(x)
+            x = F.gelu(x)
+            x = self.conv1(x)
+            x = F.gelu(x)
+            x = self.conv2(x)
+            return x + residual
+        
+        return checkpoint.checkpoint(custom_forward, x, use_reentrant=False)
 
 class DilatedConvEncoder(nn.Module):
     def __init__(self, in_channels, channels, kernel_size, extract_layers=None):

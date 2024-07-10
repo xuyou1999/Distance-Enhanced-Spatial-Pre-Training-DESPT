@@ -683,10 +683,10 @@ def testModel(P, name, mode, test_iter, adj_tst, spatialsplit, device_cpu, devic
         elif P.pre_model == 'TCN':
             encoder = Contrastive_FeatureExtractor_conv(P.cl_temperature, P.is_GCN_encoder, is_sampler, len(adj_tst), P.gcn_order, P.gcn_dropout).to(device_encoder)
             encoder = nn.DataParallel(encoder)
-        encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt'))
+        encoder.load_state_dict(torch.load(P.save_path+ '/' + 'encoder' + '.pt', map_location=device_encoder))
         encoder.eval()
     model = getModel(P, name, device_gpu, len(adj_tst))
-    model.load_state_dict(torch.load(P.save_path+ '/' + name +mode[-2:]+ '.pt'))
+    model.load_state_dict(torch.load(P.save_path+ '/' + name +mode[-2:]+ '.pt', map_location=device_gpu))
     s_time = datetime.now()
     
     '''

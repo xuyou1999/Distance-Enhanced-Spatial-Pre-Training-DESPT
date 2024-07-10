@@ -443,8 +443,6 @@ class CoSTEncoder(nn.Module):
         x2_trend = x2[:,:16]
         x2_season = x2[:,16:]
         # projection
-        print('x1_trend.shape', x1_trend.shape)
-        print('x1_season.shape', x1_season.shape)
         x1_trend = self.fc2(x1_trend)
         x1_season = self.fc2(x1_season)
         x2_trend = self.fc2(x2_trend)

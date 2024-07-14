@@ -65,7 +65,7 @@ import experiment
 #     val_loss = experiment.main(P)
 
 track_id = 9002
-for i in range(1, 5):
+for i in range(5):
     os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
     P = type('Parameters', (object,), {})()
     P.dataname = 'METRLA'

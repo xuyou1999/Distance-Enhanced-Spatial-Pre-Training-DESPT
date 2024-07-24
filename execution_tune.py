@@ -17,7 +17,7 @@ is_concat_encoder_model = [True, False]
 is_layer_after_concat = [True, False]
 is_always_augmentation = [True, False]
 
-track_id = 1000
+track_id = 1100
 
 # Temporal shifting ratio
 best_temporal_shifting_r = None
@@ -58,7 +58,7 @@ for value in temporal_shifting_r:
         P.cost_alpha = 0.5
         P.cl_temperature = 1.4
         P.is_pretrain = True
-        P.is_GCN_encoder = True
+        P.is_GCN_encoder = False
         P.is_GCN_after_CL = False
         P.gcn_order = 1
         P.gcn_dropout = 0
@@ -132,7 +132,7 @@ for value in input_smoothing_r:
         P.cost_alpha = 0.5
         P.cl_temperature = 1.4
         P.is_pretrain = True
-        P.is_GCN_encoder = True
+        P.is_GCN_encoder = False
         P.is_GCN_after_CL = False
         P.gcn_order = 1
         P.gcn_dropout = 0
@@ -206,7 +206,7 @@ for value in input_smoothing_e:
         P.cost_alpha = 0.5
         P.cl_temperature = 1.4
         P.is_pretrain = True
-        P.is_GCN_encoder = True
+        P.is_GCN_encoder = False
         P.is_GCN_after_CL = False
         P.gcn_order = 1
         P.gcn_dropout = 0
@@ -280,7 +280,7 @@ for value in augmentation:
         P.cost_alpha = 0.5
         P.cl_temperature = 1.4
         P.is_pretrain = True
-        P.is_GCN_encoder = True
+        P.is_GCN_encoder = False
         P.is_GCN_after_CL = False
         P.gcn_order = 1
         P.gcn_dropout = 0
@@ -356,7 +356,7 @@ print('Best parameter augmentation:', best_augmentation)
 #         P.cost_alpha = 0.5
 #         P.cl_temperature = 1.4
 #         P.is_pretrain = True
-#         P.is_GCN_encoder = True
+#         P.is_GCN_encoder = False
 #         P.is_GCN_after_CL = False
 #         P.gcn_order = 1
 #         P.gcn_dropout = 0
@@ -431,7 +431,7 @@ print('Best parameter augmentation:', best_augmentation)
 #         P.cost_alpha = value
 #         P.cl_temperature = 1.4
 #         P.is_pretrain = True
-#         P.is_GCN_encoder = True
+#         P.is_GCN_encoder = False
 #         P.is_GCN_after_CL = False
 #         P.gcn_order = 1
 #         P.gcn_dropout = 0
@@ -513,7 +513,7 @@ for value in cl_temperature:
         P.cost_alpha = best_cost_alpha
         P.cl_temperature = value
         P.is_pretrain = True
-        P.is_GCN_encoder = True
+        P.is_GCN_encoder = False
         P.is_GCN_after_CL = False
         P.gcn_order = 1
         P.gcn_dropout = 0
@@ -588,7 +588,7 @@ for value in encoder_to_model_ratio:
         P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
-        P.is_GCN_encoder = True
+        P.is_GCN_encoder = False
         P.is_GCN_after_CL = False
         P.gcn_order = 1
         P.gcn_dropout = 0
@@ -625,312 +625,312 @@ for value in encoder_to_model_ratio:
 print('Best parameter encoder_to_model_ratio:', best_encoder_to_model_ratio)
 
 
-# # buding
-# best_gcn_order = 1
-# best_gcn_dropout = 0
-# best_adj_method = 1
-# best_adj_diag = 0
+# buding
+best_gcn_order = 1
+best_gcn_dropout = 0
+best_adj_method = 1
+best_adj_diag = 0
 
 
-# GCN order
-best_gcn_order = None
-min_loss = float('inf')
-for value in gcn_order:
-    losses = []
-    for i in range(1):
-        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-        P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE_25'
-        P.model = 'gwnet'
-        P.pre_model = 'COST'
-        P.track_id = track_id
-        P.replication = i + 1
-        P.seed = 10
+# # GCN order
+# best_gcn_order = None
+# min_loss = float('inf')
+# for value in gcn_order:
+#     losses = []
+#     for i in range(1):
+#         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+#         P = type('Parameters', (object,), {})()
+#         P.dataname = 'HAGUE_25'
+#         P.model = 'gwnet'
+#         P.pre_model = 'COST'
+#         P.track_id = track_id
+#         P.replication = i + 1
+#         P.seed = 10
 
-        P.t_train = 0.4
-        P.t_val = 0.3
-        P.s_train = 0.7
-        P.s_val = 0.1
-        P.fold = 4
+#         P.t_train = 0.4
+#         P.t_val = 0.3
+#         P.s_train = 0.7
+#         P.s_val = 0.1
+#         P.fold = 4
 
-        P.timestep_in = 12
-        P.timestep_out = 12
-        P.n_channel = 1
-        P.batch_size = 64
+#         P.timestep_in = 12
+#         P.timestep_out = 12
+#         P.n_channel = 1
+#         P.batch_size = 64
 
-        P.lstm_hidden_dim = 128
-        P.lstm_layers = 2
-        P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = True
-        P.gwnet_is_SGA = False
+#         P.lstm_hidden_dim = 128
+#         P.lstm_layers = 2
+#         P.lstm_dropout = 0.2
+#         P.gwnet_is_adp_adj = True
+#         P.gwnet_is_SGA = False
 
-        P.adj_type = 'doubletransition'
-        P.adj_method = 1
-        P.adj_diag = 0
-        P.cost_kernals = best_cost_kernals
-        P.cost_alpha = best_cost_alpha
-        P.cl_temperature = best_cl_temperature
-        P.is_pretrain = True
-        P.is_GCN_encoder = True
-        P.is_GCN_after_CL = False
-        P.gcn_order = value
-        P.gcn_dropout = 0
-        P.augmentation = best_augmentation
-        P.temporal_shifting_r = best_temporal_shifting_r
-        P.input_smoothing_r = best_input_smoothing_r
-        P.input_smoothing_e = best_input_smoothing_e
-        P.encoder_to_model_ratio = best_encoder_to_model_ratio
-        P.is_concat_encoder_model = True
-        P.is_layer_after_concat = False
-        P.is_always_augmentation = True
+#         P.adj_type = 'doubletransition'
+#         P.adj_method = 1
+#         P.adj_diag = 0
+#         P.cost_kernals = best_cost_kernals
+#         P.cost_alpha = best_cost_alpha
+#         P.cl_temperature = best_cl_temperature
+#         P.is_pretrain = True
+#         P.is_GCN_encoder = False
+#         P.is_GCN_after_CL = False
+#         P.gcn_order = value
+#         P.gcn_dropout = 0
+#         P.augmentation = best_augmentation
+#         P.temporal_shifting_r = best_temporal_shifting_r
+#         P.input_smoothing_r = best_input_smoothing_r
+#         P.input_smoothing_e = best_input_smoothing_e
+#         P.encoder_to_model_ratio = best_encoder_to_model_ratio
+#         P.is_concat_encoder_model = True
+#         P.is_layer_after_concat = False
+#         P.is_always_augmentation = True
 
-        P.tolerance = 20
-        P.learn_rate = 0.001
-        P.pretrain_epoch = 100
-        P.train_epoch = 100
-        P.weight_decay = 0
-        P.is_testunseen = True
-        P.train_model_datasplit = 'B'
-        P.train_encoder_on = 'gpu'
+#         P.tolerance = 20
+#         P.learn_rate = 0.001
+#         P.pretrain_epoch = 100
+#         P.train_epoch = 100
+#         P.weight_decay = 0
+#         P.is_testunseen = True
+#         P.train_model_datasplit = 'B'
+#         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = False
-        P.example_verbose = False
-        P.is_tune = True
+#         P.is_mongo = False
+#         P.example_verbose = False
+#         P.is_tune = True
 
-        # Execute the experiment script
-        val_loss = experiment.main(P)
-        losses.append(val_loss)
-    final_loss = sum(losses) / len(losses)
-    if final_loss < min_loss:
-        best_gcn_order = value
-        min_loss = final_loss
-    track_id += 1
-print('Best parameter gcn_order:', best_gcn_order)
+#         # Execute the experiment script
+#         val_loss = experiment.main(P)
+#         losses.append(val_loss)
+#     final_loss = sum(losses) / len(losses)
+#     if final_loss < min_loss:
+#         best_gcn_order = value
+#         min_loss = final_loss
+#     track_id += 1
+# print('Best parameter gcn_order:', best_gcn_order)
 
-# GCN dropout
-best_gcn_dropout = None
-min_loss = float('inf')
-for value in gcn_dropout:
-    losses = []
-    for i in range(1):
-        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-        P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE_25'
-        P.model = 'gwnet'
-        P.pre_model = 'COST'
-        P.track_id = track_id
-        P.replication = i + 1
-        P.seed = 10
+# # GCN dropout
+# best_gcn_dropout = None
+# min_loss = float('inf')
+# for value in gcn_dropout:
+#     losses = []
+#     for i in range(1):
+#         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+#         P = type('Parameters', (object,), {})()
+#         P.dataname = 'HAGUE_25'
+#         P.model = 'gwnet'
+#         P.pre_model = 'COST'
+#         P.track_id = track_id
+#         P.replication = i + 1
+#         P.seed = 10
 
-        P.t_train = 0.4
-        P.t_val = 0.3
-        P.s_train = 0.7
-        P.s_val = 0.1
-        P.fold = 4
+#         P.t_train = 0.4
+#         P.t_val = 0.3
+#         P.s_train = 0.7
+#         P.s_val = 0.1
+#         P.fold = 4
 
-        P.timestep_in = 12
-        P.timestep_out = 12
-        P.n_channel = 1
-        P.batch_size = 64
+#         P.timestep_in = 12
+#         P.timestep_out = 12
+#         P.n_channel = 1
+#         P.batch_size = 64
 
-        P.lstm_hidden_dim = 128
-        P.lstm_layers = 2
-        P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = True
-        P.gwnet_is_SGA = False
+#         P.lstm_hidden_dim = 128
+#         P.lstm_layers = 2
+#         P.lstm_dropout = 0.2
+#         P.gwnet_is_adp_adj = True
+#         P.gwnet_is_SGA = False
 
-        P.adj_type = 'doubletransition'
-        P.adj_method = 1
-        P.adj_diag = 0
-        P.cost_kernals = best_cost_kernals
-        P.cost_alpha = best_cost_alpha
-        P.cl_temperature = best_cl_temperature
-        P.is_pretrain = True
-        P.is_GCN_encoder = True
-        P.is_GCN_after_CL = False
-        P.gcn_order = best_gcn_order
-        P.gcn_dropout = value
-        P.augmentation = best_augmentation
-        P.temporal_shifting_r = best_temporal_shifting_r
-        P.input_smoothing_r = best_input_smoothing_r
-        P.input_smoothing_e = best_input_smoothing_e
-        P.encoder_to_model_ratio = best_encoder_to_model_ratio
-        P.is_concat_encoder_model = True
-        P.is_layer_after_concat = False
-        P.is_always_augmentation = True
+#         P.adj_type = 'doubletransition'
+#         P.adj_method = 1
+#         P.adj_diag = 0
+#         P.cost_kernals = best_cost_kernals
+#         P.cost_alpha = best_cost_alpha
+#         P.cl_temperature = best_cl_temperature
+#         P.is_pretrain = True
+#         P.is_GCN_encoder = False
+#         P.is_GCN_after_CL = False
+#         P.gcn_order = best_gcn_order
+#         P.gcn_dropout = value
+#         P.augmentation = best_augmentation
+#         P.temporal_shifting_r = best_temporal_shifting_r
+#         P.input_smoothing_r = best_input_smoothing_r
+#         P.input_smoothing_e = best_input_smoothing_e
+#         P.encoder_to_model_ratio = best_encoder_to_model_ratio
+#         P.is_concat_encoder_model = True
+#         P.is_layer_after_concat = False
+#         P.is_always_augmentation = True
 
-        P.tolerance = 20
-        P.learn_rate = 0.001
-        P.pretrain_epoch = 100
-        P.train_epoch = 100
-        P.weight_decay = 0
-        P.is_testunseen = True
-        P.train_model_datasplit = 'B'
-        P.train_encoder_on = 'gpu'
+#         P.tolerance = 20
+#         P.learn_rate = 0.001
+#         P.pretrain_epoch = 100
+#         P.train_epoch = 100
+#         P.weight_decay = 0
+#         P.is_testunseen = True
+#         P.train_model_datasplit = 'B'
+#         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = False
-        P.example_verbose = False
-        P.is_tune = True
+#         P.is_mongo = False
+#         P.example_verbose = False
+#         P.is_tune = True
 
-        # Execute the experiment script
-        val_loss = experiment.main(P)
-        losses.append(val_loss)
-    final_loss = sum(losses) / len(losses)
-    if final_loss < min_loss:
-        best_gcn_dropout = value
-        min_loss = final_loss
-    track_id += 1
-print('Best parameter gcn_dropout:', best_gcn_dropout)
+#         # Execute the experiment script
+#         val_loss = experiment.main(P)
+#         losses.append(val_loss)
+#     final_loss = sum(losses) / len(losses)
+#     if final_loss < min_loss:
+#         best_gcn_dropout = value
+#         min_loss = final_loss
+#     track_id += 1
+# print('Best parameter gcn_dropout:', best_gcn_dropout)
 
-# Adj method
-best_adj_method = None
-min_loss = float('inf')
-for value in adj_method:
-    losses = []
-    for i in range(1):
-        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-        P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE_25'
-        P.model = 'gwnet'
-        P.pre_model = 'COST'
-        P.track_id = track_id
-        P.replication = i + 1
-        P.seed = 10
+# # Adj method
+# best_adj_method = None
+# min_loss = float('inf')
+# for value in adj_method:
+#     losses = []
+#     for i in range(1):
+#         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+#         P = type('Parameters', (object,), {})()
+#         P.dataname = 'HAGUE_25'
+#         P.model = 'gwnet'
+#         P.pre_model = 'COST'
+#         P.track_id = track_id
+#         P.replication = i + 1
+#         P.seed = 10
 
-        P.t_train = 0.4
-        P.t_val = 0.3
-        P.s_train = 0.7
-        P.s_val = 0.1
-        P.fold = 4
+#         P.t_train = 0.4
+#         P.t_val = 0.3
+#         P.s_train = 0.7
+#         P.s_val = 0.1
+#         P.fold = 4
 
-        P.timestep_in = 12
-        P.timestep_out = 12
-        P.n_channel = 1
-        P.batch_size = 64
+#         P.timestep_in = 12
+#         P.timestep_out = 12
+#         P.n_channel = 1
+#         P.batch_size = 64
 
-        P.lstm_hidden_dim = 128
-        P.lstm_layers = 2
-        P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = True
-        P.gwnet_is_SGA = False
+#         P.lstm_hidden_dim = 128
+#         P.lstm_layers = 2
+#         P.lstm_dropout = 0.2
+#         P.gwnet_is_adp_adj = True
+#         P.gwnet_is_SGA = False
 
-        P.adj_type = 'doubletransition'
-        P.adj_method = value
-        P.adj_diag = 0
-        P.cost_kernals = best_cost_kernals
-        P.cost_alpha = best_cost_alpha
-        P.cl_temperature = best_cl_temperature
-        P.is_pretrain = True
-        P.is_GCN_encoder = True
-        P.is_GCN_after_CL = False
-        P.gcn_order = best_gcn_order
-        P.gcn_dropout = best_gcn_dropout
-        P.augmentation = best_augmentation
-        P.temporal_shifting_r = best_temporal_shifting_r
-        P.input_smoothing_r = best_input_smoothing_r
-        P.input_smoothing_e = best_input_smoothing_e
-        P.encoder_to_model_ratio = best_encoder_to_model_ratio
-        P.is_concat_encoder_model = True
-        P.is_layer_after_concat = False
-        P.is_always_augmentation = True
+#         P.adj_type = 'doubletransition'
+#         P.adj_method = value
+#         P.adj_diag = 0
+#         P.cost_kernals = best_cost_kernals
+#         P.cost_alpha = best_cost_alpha
+#         P.cl_temperature = best_cl_temperature
+#         P.is_pretrain = True
+#         P.is_GCN_encoder = False
+#         P.is_GCN_after_CL = False
+#         P.gcn_order = best_gcn_order
+#         P.gcn_dropout = best_gcn_dropout
+#         P.augmentation = best_augmentation
+#         P.temporal_shifting_r = best_temporal_shifting_r
+#         P.input_smoothing_r = best_input_smoothing_r
+#         P.input_smoothing_e = best_input_smoothing_e
+#         P.encoder_to_model_ratio = best_encoder_to_model_ratio
+#         P.is_concat_encoder_model = True
+#         P.is_layer_after_concat = False
+#         P.is_always_augmentation = True
 
-        P.tolerance = 20
-        P.learn_rate = 0.001
-        P.pretrain_epoch = 100
-        P.train_epoch = 100
-        P.weight_decay = 0
-        P.is_testunseen = True
-        P.train_model_datasplit = 'B'
-        P.train_encoder_on = 'gpu'
+#         P.tolerance = 20
+#         P.learn_rate = 0.001
+#         P.pretrain_epoch = 100
+#         P.train_epoch = 100
+#         P.weight_decay = 0
+#         P.is_testunseen = True
+#         P.train_model_datasplit = 'B'
+#         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = False
-        P.example_verbose = False
-        P.is_tune = True
+#         P.is_mongo = False
+#         P.example_verbose = False
+#         P.is_tune = True
         
-        # Execute the experiment script
-        val_loss = experiment.main(P)
-        losses.append(val_loss)
-    final_loss = sum(losses) / len(losses)
-    if final_loss < min_loss:
-        best_adj_method = value
-        min_loss = final_loss
-    track_id += 1
-print('Best parameter adj_method:', best_adj_method)
+#         # Execute the experiment script
+#         val_loss = experiment.main(P)
+#         losses.append(val_loss)
+#     final_loss = sum(losses) / len(losses)
+#     if final_loss < min_loss:
+#         best_adj_method = value
+#         min_loss = final_loss
+#     track_id += 1
+# print('Best parameter adj_method:', best_adj_method)
 
-# Adj diag
-best_adj_diag = None
-min_loss = float('inf')
-for value in adj_diag:
-    losses = []
-    for i in range(1):
-        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-        P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE_25'
-        P.model = 'gwnet'
-        P.pre_model = 'COST'
-        P.track_id = track_id
-        P.replication = i + 1
-        P.seed = 10
+# # Adj diag
+# best_adj_diag = None
+# min_loss = float('inf')
+# for value in adj_diag:
+#     losses = []
+#     for i in range(1):
+#         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+#         P = type('Parameters', (object,), {})()
+#         P.dataname = 'HAGUE_25'
+#         P.model = 'gwnet'
+#         P.pre_model = 'COST'
+#         P.track_id = track_id
+#         P.replication = i + 1
+#         P.seed = 10
 
-        P.t_train = 0.4
-        P.t_val = 0.3
-        P.s_train = 0.7
-        P.s_val = 0.1
-        P.fold = 4
+#         P.t_train = 0.4
+#         P.t_val = 0.3
+#         P.s_train = 0.7
+#         P.s_val = 0.1
+#         P.fold = 4
 
-        P.timestep_in = 12
-        P.timestep_out = 12
-        P.n_channel = 1
-        P.batch_size = 64
+#         P.timestep_in = 12
+#         P.timestep_out = 12
+#         P.n_channel = 1
+#         P.batch_size = 64
 
-        P.lstm_hidden_dim = 128
-        P.lstm_layers = 2
-        P.lstm_dropout = 0.2
-        P.gwnet_is_adp_adj = True
-        P.gwnet_is_SGA = False
+#         P.lstm_hidden_dim = 128
+#         P.lstm_layers = 2
+#         P.lstm_dropout = 0.2
+#         P.gwnet_is_adp_adj = True
+#         P.gwnet_is_SGA = False
 
-        P.adj_type = 'doubletransition'
-        P.adj_method = best_adj_method
-        P.adj_diag = value
-        P.cost_kernals = best_cost_kernals
-        P.cost_alpha = best_cost_alpha
-        P.cl_temperature = best_cl_temperature
-        P.is_pretrain = True
-        P.is_GCN_encoder = True
-        P.is_GCN_after_CL = False
-        P.gcn_order = best_gcn_order
-        P.gcn_dropout = best_gcn_dropout
-        P.augmentation = best_augmentation
-        P.temporal_shifting_r = best_temporal_shifting_r
-        P.input_smoothing_r = best_input_smoothing_r
-        P.input_smoothing_e = best_input_smoothing_e
-        P.encoder_to_model_ratio = best_encoder_to_model_ratio
-        P.is_concat_encoder_model = True
-        P.is_layer_after_concat = False
-        P.is_always_augmentation = True
+#         P.adj_type = 'doubletransition'
+#         P.adj_method = best_adj_method
+#         P.adj_diag = value
+#         P.cost_kernals = best_cost_kernals
+#         P.cost_alpha = best_cost_alpha
+#         P.cl_temperature = best_cl_temperature
+#         P.is_pretrain = True
+#         P.is_GCN_encoder = False
+#         P.is_GCN_after_CL = False
+#         P.gcn_order = best_gcn_order
+#         P.gcn_dropout = best_gcn_dropout
+#         P.augmentation = best_augmentation
+#         P.temporal_shifting_r = best_temporal_shifting_r
+#         P.input_smoothing_r = best_input_smoothing_r
+#         P.input_smoothing_e = best_input_smoothing_e
+#         P.encoder_to_model_ratio = best_encoder_to_model_ratio
+#         P.is_concat_encoder_model = True
+#         P.is_layer_after_concat = False
+#         P.is_always_augmentation = True
 
-        P.tolerance = 20
-        P.learn_rate = 0.001
-        P.pretrain_epoch = 100
-        P.train_epoch = 100
-        P.weight_decay = 0
-        P.is_testunseen = True
-        P.train_model_datasplit = 'B'
-        P.train_encoder_on = 'gpu'
+#         P.tolerance = 20
+#         P.learn_rate = 0.001
+#         P.pretrain_epoch = 100
+#         P.train_epoch = 100
+#         P.weight_decay = 0
+#         P.is_testunseen = True
+#         P.train_model_datasplit = 'B'
+#         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = False
-        P.example_verbose = False
-        P.is_tune = True
+#         P.is_mongo = False
+#         P.example_verbose = False
+#         P.is_tune = True
         
-        # Execute the experiment script
-        val_loss = experiment.main(P)
-        losses.append(val_loss)
-    final_loss = sum(losses) / len(losses)
-    if final_loss < min_loss:
-        best_adj_diag = value
-        min_loss = final_loss
-    track_id += 1
-print('Best parameter adj_diag:', best_adj_diag)
+#         # Execute the experiment script
+#         val_loss = experiment.main(P)
+#         losses.append(val_loss)
+#     final_loss = sum(losses) / len(losses)
+#     if final_loss < min_loss:
+#         best_adj_diag = value
+#         min_loss = final_loss
+#     track_id += 1
+# print('Best parameter adj_diag:', best_adj_diag)
 
 # Concat encoder model
 best_is_concat_encoder_model = None
@@ -971,7 +971,7 @@ for value in is_concat_encoder_model:
         P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
-        P.is_GCN_encoder = True
+        P.is_GCN_encoder = False
         P.is_GCN_after_CL = False
         P.gcn_order = best_gcn_order
         P.gcn_dropout = best_gcn_dropout
@@ -1046,7 +1046,7 @@ for value in is_layer_after_concat:
         P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
-        P.is_GCN_encoder = True
+        P.is_GCN_encoder = False
         P.is_GCN_after_CL = False
         P.gcn_order = best_gcn_order
         P.gcn_dropout = best_gcn_dropout
@@ -1121,7 +1121,7 @@ for value in is_always_augmentation:
         P.cost_alpha = best_cost_alpha
         P.cl_temperature = best_cl_temperature
         P.is_pretrain = True
-        P.is_GCN_encoder = True
+        P.is_GCN_encoder = False
         P.is_GCN_after_CL = False
         P.gcn_order = best_gcn_order
         P.gcn_dropout = best_gcn_dropout
@@ -1164,7 +1164,7 @@ for i in range(5):
     P.dataname = 'HAGUE_25'
     P.model = 'gwnet'
     P.pre_model = 'COST'
-    P.track_id = track_id
+    P.track_id = 9015
     P.replication = i + 1
     P.seed = 10
 
@@ -1192,7 +1192,7 @@ for i in range(5):
     P.cost_alpha = best_cost_alpha
     P.cl_temperature = best_cl_temperature
     P.is_pretrain = True
-    P.is_GCN_encoder = True
+    P.is_GCN_encoder = False
     P.is_GCN_after_CL = False
     P.gcn_order = best_gcn_order
     P.gcn_dropout = best_gcn_dropout

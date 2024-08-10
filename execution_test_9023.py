@@ -5,7 +5,7 @@ track_id = 9023
 for i in range(5):
     os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
     P = type('Parameters', (object,), {})()
-    P.dataname = 'HAGUE_20_2'
+    P.dataname = 'HAGUE_20_3'
     P.model = 'gwnet'
     P.pre_model = 'COST'
     P.track_id = track_id

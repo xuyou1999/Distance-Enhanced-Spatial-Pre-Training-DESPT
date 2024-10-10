@@ -1,6 +1,7 @@
 import os
 import experiment
 
+# Define the hyperparameters to tune, and the range of values to try
 temporal_shifting_r = [0.7, 0.8, 0.9, 0.95]
 input_smoothing_r = [0.7, 0.8, 0.9, 0.95]
 input_smoothing_e = [10, 20, 40, 80, 150, 250, 400]
@@ -17,7 +18,7 @@ is_concat_encoder_model = [True, False]
 is_layer_after_concat = [True, False]
 is_always_augmentation = [True, False]
 
-track_id = 1400
+track_id = 1 # set the start of the track id, each iteration will increase the track id by 1 so that each experiment has a unique track id
 
 # Temporal shifting ratio
 best_temporal_shifting_r = None
@@ -27,9 +28,9 @@ for value in temporal_shifting_r:
     for i in range(1):
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         P = type('Parameters', (object,), {})()
-        P.dataname = 'HAGUE_20_3'
-        P.model = 'gwnet'
-        P.pre_model = 'COST'
+        P.dataname = 'HAGUE_20_3' # dataset name
+        P.model = 'gwnet' # model name, could be 'gwnet' or 'lstm', 'gwnet' is the default model in the paper
+        P.pre_model = 'COST' # pretrain model framework options, could be 'COST' (STD) or 'TCN' (regular)
         P.track_id = track_id
         P.replication = i + 1
         P.seed = 10
@@ -57,8 +58,8 @@ for value in temporal_shifting_r:
         P.cost_kernals = [1, 2, 4, 8]
         P.cost_alpha = 0.5
         P.cl_temperature = 1.4
-        P.is_pretrain = True
-        P.is_GCN_encoder = False
+        P.is_pretrain = True # whether to pretrain the model, when True, the model will be 'SCPT+' or 'DESPT'
+        P.is_GCN_encoder = False # whether to use GCN encoder, when True, the model will be 'DESPT'
         P.is_GCN_after_CL = False
         P.gcn_order = 1
         P.gcn_dropout = 0
@@ -80,9 +81,9 @@ for value in temporal_shifting_r:
         P.train_model_datasplit = 'B'
         P.train_encoder_on = 'gpu'
 
-        P.is_mongo = False
+        P.is_mongo = False # whether to use mongodb to store the experiment results
         P.example_verbose = False
-        P.is_tune = True
+        P.is_tune = True # Only True when tuning
         # Execute the experiment script
         val_loss = experiment.main(P)
         losses.append(val_loss)

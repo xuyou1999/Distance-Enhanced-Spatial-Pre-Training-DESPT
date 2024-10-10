@@ -1,13 +1,13 @@
 import os
 import experiment
 
-track_id = 9023
+track_id = 9023 # set the start of the track id, each iteration will increase the track id by 1 so that each experiment has a unique track id
 for i in range(5):
     os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
     P = type('Parameters', (object,), {})()
-    P.dataname = 'HAGUE_20_3'
-    P.model = 'gwnet'
-    P.pre_model = 'COST'
+    P.dataname = 'HAGUE_20_3' # dataset name
+    P.model = 'gwnet' # model name, could be 'gwnet' or 'lstm', 'gwnet' is the default model in the paper
+    P.pre_model = 'COST' # pretrain model framework options, could be 'COST' (STD) or 'TCN' (regular)
     P.track_id = track_id
     P.replication = i + 1
     P.seed = 10
@@ -29,27 +29,27 @@ for i in range(5):
     P.gwnet_is_adp_adj = True
     P.gwnet_is_SGA = False
 
-    P.adj_type = 'doubletransition'
-    P.adj_method = 1
-    P.adj_diag = 0
-    P.cost_kernals = [1, 2, 4, 8, 16]
-    P.cost_alpha = 2
-    P.cl_temperature = 1
-    P.is_pretrain = False
-    P.is_GCN_encoder = False
+    P.adj_type = 'doubletransition' # set to best after tuning
+    P.adj_method = 1 # set to best after tuning
+    P.adj_diag = 0 # set to best after tuning
+    P.cost_kernals = [1, 2, 4, 8, 16] # set to best after tuning
+    P.cost_alpha = 2 # set to best after tuning
+    P.cl_temperature = 1 # set to best after tuning
+    P.is_pretrain = False # whether to pretrain the model, when True, the model will be 'SCPT+' or 'DESPT'
+    P.is_GCN_encoder = False # whether to use GCN encoder, when True, the model will be 'DESPT'
     P.is_GCN_after_CL = False
-    P.gcn_order = 1
-    P.gcn_dropout = 0
-    P.augmentation = 'temporal_shifting'
-    P.temporal_shifting_r = 0.9
-    P.input_smoothing_r = 0.95
-    P.input_smoothing_e = 250
-    P.encoder_to_model_ratio = 2
-    P.is_concat_encoder_model = False
-    P.is_layer_after_concat = False
-    P.is_always_augmentation = False
+    P.gcn_order = 1 # set to best after tuning
+    P.gcn_dropout = 0 # set to best after tuning
+    P.augmentation = 'temporal_shifting' # set to best after tuning
+    P.temporal_shifting_r = 0.9 # set to best after tuning
+    P.input_smoothing_r = 0.95 # set to best after tuning
+    P.input_smoothing_e = 250 # set to best after tuning
+    P.encoder_to_model_ratio = 2 # set to best after tuning
+    P.is_concat_encoder_model = False # set to best after tuning
+    P.is_layer_after_concat = False # set to best after tuning
+    P.is_always_augmentation = False # set to best after tuning
 
-    P.tolerance = 20
+    P.tolerance = 20 # equal to the number of epochs without improvement before early stopping, used for runtime study
     P.learn_rate = 0.001
     P.pretrain_epoch = 100
     P.train_epoch = 100
@@ -58,8 +58,8 @@ for i in range(5):
     P.train_model_datasplit = 'B'
     P.train_encoder_on = 'gpu'
 
-    P.is_mongo = False
+    P.is_mongo = False # whether to use mongodb to store the experiment results
     P.example_verbose = False
-    P.is_tune = False
+    P.is_tune = False # Only True when tuning
 
     val_loss = experiment.main(P)

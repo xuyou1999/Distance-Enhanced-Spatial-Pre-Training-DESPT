@@ -7,7 +7,7 @@ for i in range(5):
     P = type('Parameters', (object,), {})()
     P.dataname = 'HAGUE_20_3' # dataset name
     P.model = 'gwnet' # model name, could be 'gwnet' or 'lstm', 'gwnet' is the default model in the paper
-    P.pre_model = 'COST' # pretrain model framework options, could be 'COST' (STD) or 'TCN' (regular)
+    P.pre_model = 'TCN' # pretrain model framework options, could be 'COST' (STD) or 'TCN' (regular)
     P.track_id = track_id
     P.replication = i + 1
     P.seed = 10
